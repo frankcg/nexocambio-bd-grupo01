@@ -1,0 +1,324 @@
+SET
+CREATE VIEW
+COMMENT
+
+== C1 · Volumen procesado por par de monedas (2026) ==
+ modalidad |   par    | operaciones | volumen_usd | ticket_promedio_usd | pct_preferencial 
+-----------+----------+-------------+-------------+---------------------+------------------
+ casa      | USD/PEN  |      197103 |   485104032 |             2461.17 |             14.0
+ casa      | PEN/USD  |      188340 |   462828637 |             2457.41 |             14.0
+ casa      | PEN/EUR  |       17453 |    43568907 |             2496.36 |             14.1
+ casa      | EUR/PEN  |       13138 |    32669008 |             2486.60 |             14.3
+ casa      | USD/EUR  |       12979 |    31849246 |             2453.91 |             13.9
+ cripto    | PEN/USDT |       21594 |    23868454 |             1105.33 |              6.4
+ casa      | EUR/USD  |        8596 |    21628882 |             2516.16 |             14.3
+ cripto    | USD/USDT |       12597 |    14676649 |             1165.09 |              6.8
+ cripto    | USDT/PEN |       11862 |    13772558 |             1161.07 |              6.8
+ cripto    | USD/BTC  |        9855 |    11566611 |             1173.68 |              6.7
+ cripto    | USD/ETH  |        6950 |     7869811 |             1132.35 |              6.2
+ cripto    | PEN/BTC  |        5940 |     7132807 |             1200.81 |              6.8
+ cripto    | BTC/USD  |        6039 |     6682849 |             1106.62 |              6.5
+ cripto    | USDT/USD |        5772 |     6641246 |             1150.60 |              6.7
+ cripto    | ETH/USD  |        4915 |     5577503 |             1134.79 |              6.3
+ cripto    | PEN/USDC |        5013 |     5487181 |             1094.59 |              6.3
+ cripto    | USDC/PEN |        4940 |     5351931 |             1083.39 |              6.1
+ cripto    | BTC/PEN  |        3015 |     3142788 |             1042.38 |              6.2
+(18 filas)
+
+
+== C2 · Rechazos por banco de origen ==
+  banco_origen   | decididas | rechazadas | pct_rechazo |              motivo_mas_frecuente               
+-----------------+-----------+------------+-------------+-------------------------------------------------
+ BanBif          |     33132 |       2926 |        8.83 | Alerta de cumplimiento: operación inusual (UIF)
+ BBVA            |    161233 |      14055 |        8.72 | Alerta de cumplimiento: operación inusual (UIF)
+ Banco Pichincha |     32659 |       2838 |        8.69 | Alerta de cumplimiento: operación inusual (UIF)
+ Interbank       |    202197 |      17376 |        8.59 | Alerta de cumplimiento: operación inusual (UIF)
+ BCP             |    284627 |      24285 |        8.53 | Alerta de cumplimiento: operación inusual (UIF)
+ Scotiabank      |     98459 |       8403 |        8.53 | Alerta de cumplimiento: operación inusual (UIF)
+(6 filas)
+
+
+== C3 · Clientes registrados sin operaciones, por cohorte trimestral ==
+ cohorte | tipo_cliente | registrados | sin_operaciones | pct_sin_operar 
+---------+--------------+-------------+-----------------+----------------
+ 2024-T4 | empresa      |         422 |             142 |           33.6
+ 2024-T4 | persona      |        2534 |             741 |           29.2
+ 2025-T1 | empresa      |         528 |             147 |           27.8
+ 2025-T1 | persona      |        2819 |             770 |           27.3
+ 2025-T2 | empresa      |         654 |             193 |           29.5
+ 2025-T2 | persona      |        3706 |            1017 |           27.4
+ 2025-T3 | empresa      |         787 |             210 |           26.7
+ 2025-T3 | persona      |        4664 |            1230 |           26.4
+ 2025-T4 | empresa      |        1003 |             253 |           25.2
+ 2025-T4 | persona      |        5408 |            1447 |           26.8
+ 2026-T1 | empresa      |        1104 |             305 |           27.6
+ 2026-T1 | persona      |        6208 |            1676 |           27.0
+ 2026-T2 | empresa      |        1279 |             352 |           27.5
+ 2026-T2 | persona      |        7261 |            1982 |           27.3
+ 2026-T3 | empresa      |        1395 |             371 |           26.6
+ 2026-T3 | persona      |        8031 |            2386 |           29.7
+ 2026-T4 | empresa      |         335 |             166 |           49.6
+ 2026-T4 | persona      |        1862 |            1174 |           63.1
+(18 filas)
+
+
+== C4 · Tiempo de validación por analista ==
+        nombre         |   rol    | decisiones | pct_rechazo | minutos_promedio | minutos_mediana 
+-----------------------+----------+------------+-------------+------------------+-----------------
+ Lucía Paredes Cruz    | analista |      87243 |         4.1 |            133.5 |            15.4
+ Jorge Cáceres Vargas  | analista |      86734 |         4.0 |            135.9 |            19.0
+ Óscar Salazar Ríos    | analista |      87412 |         4.0 |            139.0 |            21.1
+ Rosa Huamán Castro    | analista |      87133 |         4.0 |            138.3 |            22.0
+ Daniel Ponce Silva    | analista |      87175 |         3.9 |            140.5 |            22.2
+ Karla Medina Torres   | analista |      87438 |         4.0 |            141.6 |            24.2
+ Milagros Zapata Díaz  | analista |      87602 |         4.0 |            147.5 |            30.2
+ Marco Aguilar León    | analista |      87295 |         4.1 |            149.6 |            31.0
+ Valeria Navarro Ramos | analista |      86897 |         4.1 |            149.7 |            32.2
+ Renzo Córdova Flores  | analista |      87152 |         4.1 |            152.6 |            32.9
+(10 filas)
+
+
+== C5 · Crecimiento mensual del volumen procesado ==
+   mes   | operaciones | volumen_usd | var_pct_vs_mes_anterior | acumulado_del_anio | media_movil_3m 
+---------+-------------+-------------+-------------------------+--------------------+----------------
+ 2025-01 |        7617 |    15944466 |                         |           15944466 |       15944466
+ 2025-02 |        8634 |    18083840 |                    13.4 |           34028306 |       17014153
+ 2025-03 |       11696 |    23918139 |                    32.3 |           57946445 |       19315482
+ 2025-04 |       13976 |    27222581 |                    13.8 |           85169026 |       23074853
+ 2025-05 |       16873 |    33931014 |                    24.6 |          119100040 |       28357245
+ 2025-06 |       18918 |    38705018 |                    14.1 |          157805058 |       33286204
+ 2025-07 |       23771 |    47232953 |                    22.0 |          205038011 |       39956328
+ 2025-08 |       25675 |    50913103 |                     7.8 |          255951114 |       45617025
+ 2025-09 |       28775 |    58323544 |                    14.6 |          314274658 |       52156533
+ 2025-10 |       33106 |    69992289 |                    20.0 |          384266947 |       59742979
+ 2025-11 |       32896 |    69735860 |                    -0.4 |          454002807 |       66017231
+ 2025-12 |       38879 |    85842499 |                    23.1 |          539845306 |       75190216
+ 2026-01 |       41862 |    89616939 |                     4.4 |           89616939 |       81731766
+ 2026-02 |       40992 |    87968991 |                    -1.8 |          177585930 |       87809476
+ 2026-03 |       47121 |   103292537 |                    17.4 |          280878468 |       93626156
+ 2026-04 |       50001 |   109556659 |                     6.1 |          390435127 |      100272729
+ 2026-05 |       52875 |   118032300 |                     7.7 |          508467427 |      110293832
+ 2026-06 |       57491 |   128960491 |                     9.3 |          637427918 |      118849817
+ 2026-07 |       63753 |   143116527 |                    11.0 |          780544445 |      130036439
+ 2026-08 |       64324 |   142749311 |                    -0.3 |          923293756 |      138275443
+ 2026-09 |       68440 |   155220199 |                     8.7 |         1078513954 |      147028679
+ 2026-10 |       49242 |   110905146 |                   -28.5 |         1189419100 |      136291552
+(22 filas)
+
+
+== C6 · Top 3 clientes por volumen en cada mes (abr–set 2026) ==
+   mes   | puesto | codigo_cliente | tipo_cliente | operaciones | volumen_usd | pct_del_mes 
+---------+--------+----------------+--------------+-------------+-------------+-------------
+ 2026-04 |      1 | CLI-ZYCHEZ     | persona      |         302 |     2199347 |        2.01
+ 2026-04 |      2 | CLI-XKLBXW     | persona      |         245 |     1781072 |        1.63
+ 2026-04 |      3 | CLI-2Y42M1     | empresa      |         111 |      882195 |        0.81
+ 2026-05 |      1 | CLI-ZYCHEZ     | persona      |         277 |     2006293 |        1.70
+ 2026-05 |      2 | CLI-XKLBXW     | persona      |         240 |     1823952 |        1.55
+ 2026-05 |      3 | CLI-WFFN6D     | empresa      |         122 |      979735 |        0.83
+ 2026-06 |      1 | CLI-ZYCHEZ     | persona      |         313 |     2434747 |        1.89
+ 2026-06 |      2 | CLI-XKLBXW     | persona      |         225 |     1629132 |        1.26
+ 2026-06 |      3 | CLI-NQ9YWO     | empresa      |         129 |      865197 |        0.67
+ 2026-07 |      1 | CLI-ZYCHEZ     | persona      |         271 |     1926420 |        1.35
+ 2026-07 |      2 | CLI-XKLBXW     | persona      |         245 |     1840672 |        1.29
+ 2026-07 |      3 | CLI-4VH029     | empresa      |         148 |      949179 |        0.66
+ 2026-08 |      1 | CLI-ZYCHEZ     | persona      |         286 |     2045969 |        1.43
+ 2026-08 |      2 | CLI-XKLBXW     | persona      |         255 |     1915379 |        1.34
+ 2026-08 |      3 | CLI-6J0ZXC     | empresa      |         118 |      921234 |        0.65
+ 2026-09 |      1 | CLI-ZYCHEZ     | persona      |         306 |     2245534 |        1.45
+ 2026-09 |      2 | CLI-XKLBXW     | persona      |         236 |     1754706 |        1.13
+ 2026-09 |      3 | CLI-1Z9J2B     | empresa      |         127 |      844479 |        0.54
+(18 filas)
+
+
+== C7 · Embudo de conversión por modalidad y canal ==
+ modalidad |   canal    | cotizaciones | operaciones | pct_conversion | pct_sin_comprobante | pct_procesadas 
+-----------+------------+--------------+-------------+----------------+---------------------+----------------
+ casa      | (todos)    |      1620176 |      748967 |           46.2 |                 5.0 |           86.8
+ casa      | Con sesión |      1229571 |      690488 |           56.2 |                 5.0 |           86.8
+ casa      | Visitante  |       390605 |       58479 |           15.0 |                 5.0 |           87.2
+ cripto    | (todos)    |       380641 |      169512 |           44.5 |                 5.1 |           86.5
+ cripto    | Con sesión |       271034 |      152889 |           56.4 |                 5.1 |           86.4
+ cripto    | Visitante  |       109607 |       16623 |           15.2 |                 5.1 |           87.5
+ TOTAL     | (todos)    |      2000817 |      918479 |           45.9 |                 5.0 |           86.8
+(7 filas)
+
+
+== C8 · Ingreso por spread por trimestre, tipo de cliente y modalidad ==
+ trimestre | tipo_cliente | modalidad | ingreso_spread_usd | pct_del_trimestre | margen_pb 
+-----------+--------------+-----------+--------------------+-------------------+-----------
+ 2025-T1   | empresa      | casa      |          111466.66 |              49.7 |      30.9
+ 2025-T1   | persona      | casa      |           65183.83 |              29.1 |      38.8
+ 2025-T1   | persona      | cripto    |           32193.34 |              14.4 |      98.5
+ 2025-T1   | empresa      | cripto    |           15474.33 |               6.9 |      84.4
+ 2025-T2   | empresa      | casa      |          192106.83 |              49.4 |      31.0
+ 2025-T2   | persona      | casa      |          114518.86 |              29.4 |      39.2
+ 2025-T2   | persona      | cripto    |           54938.49 |              14.1 |      99.8
+ 2025-T2   | empresa      | cripto    |           27424.06 |               7.1 |      83.3
+ 2025-T3   | empresa      | casa      |          301343.03 |              49.4 |      31.1
+ 2025-T3   | persona      | casa      |          180432.85 |              29.6 |      39.2
+ 2025-T3   | persona      | cripto    |           86645.37 |              14.2 |     100.5
+ 2025-T3   | empresa      | cripto    |           41705.24 |               6.8 |      84.5
+ 2025-T4   | empresa      | casa      |          436887.52 |              50.0 |      31.0
+ 2025-T4   | persona      | casa      |          245119.84 |              28.1 |      38.5
+ 2025-T4   | persona      | cripto    |          123576.95 |              14.1 |      97.4
+ 2025-T4   | empresa      | cripto    |           68110.49 |               7.8 |      82.2
+ 2026-T1   | empresa      | casa      |          537640.55 |              49.5 |      31.0
+ 2026-T1   | persona      | casa      |          310441.25 |              28.6 |      38.1
+ 2026-T1   | persona      | cripto    |          153891.83 |              14.2 |      96.5
+ 2026-T1   | empresa      | cripto    |           83150.69 |               7.7 |      82.8
+ 2026-T2   | empresa      | casa      |          666606.98 |              48.5 |      31.0
+ 2026-T2   | persona      | casa      |          401819.99 |              29.3 |      37.2
+ 2026-T2   | persona      | cripto    |          208982.76 |              15.2 |      93.9
+ 2026-T2   | empresa      | cripto    |           95860.26 |               7.0 |      83.0
+ 2026-T3   | empresa      | casa      |          822306.46 |              48.6 |      31.0
+ 2026-T3   | persona      | casa      |          497649.04 |              29.4 |      37.0
+ 2026-T3   | persona      | cripto    |          252812.21 |              14.9 |      93.8
+ 2026-T3   | empresa      | cripto    |          120734.84 |               7.1 |      83.4
+ 2026-T4   | empresa      | casa      |          204439.08 |              48.0 |      31.0
+ 2026-T4   | persona      | casa      |          126536.09 |              29.7 |      36.8
+ 2026-T4   | persona      | cripto    |           64059.95 |              15.0 |      93.3
+ 2026-T4   | empresa      | cripto    |           30839.21 |               7.2 |      83.5
+(32 filas)
+
+
+== C9 · Segmentación de abandono de clientes frecuentes ==
+   segmento   | clientes | operaciones_prom | intervalo_prom_dias | dias_inactivo_prom 
+--------------+----------+------------------+---------------------+--------------------
+ 1. Activo    |    14205 |               31 |                13.9 |                9.5
+ 2. En riesgo |     2851 |               26 |                13.6 |               38.4
+ 3. Abandono  |    10014 |               26 |                11.9 |              237.8
+(3 filas)
+
+
+== C10 · Operaciones de más de 5 veces el promedio del cliente ==
+ codigo_cliente | codigo_operacion |   fecha    | estado_actual | monto_usd | promedio_cliente | veces_promedio 
+----------------+------------------+------------+---------------+-----------+------------------+----------------
+ CLI-ML9UGK     | NX-4CR89HMK      | 2026-06-30 | Procesada     |    247248 |             6709 |           36.9
+ CLI-5ZXXQV     | NX-9K6TMYK3      | 2025-09-26 | Procesada     |     23780 |              657 |           36.2
+ CLI-SD1NH0     | NX-7YPA3FQX      | 2025-11-26 | Procesada     |     24183 |              690 |           35.1
+ CLI-IN9ODP     | NX-LJ79JJGN      | 2026-05-14 | Procesada     |    342558 |            10068 |           34.0
+ CLI-GV2TE7     | NX-68LPQDTY      | 2025-11-16 | Procesada     |    206375 |             6586 |           31.3
+ CLI-2Y42M1     | NX-J5J469UF      | 2026-04-22 | Procesada     |    174744 |             5908 |           29.6
+ CLI-SY3YVD     | NX-JZLPNYVE      | 2026-05-01 | Procesada     |     20671 |              710 |           29.1
+ CLI-OAVFXI     | NX-9RRAXN9V      | 2026-08-06 | Procesada     |     19193 |              687 |           27.9
+ CLI-J4L89D     | NX-VJFZ5S3Y      | 2025-06-27 | Procesada     |    188837 |             6791 |           27.8
+ CLI-WKRRGY     | NX-SCZFVGSP      | 2026-05-23 | Procesada     |     18430 |              701 |           26.3
+ CLI-NBKOLG     | NX-WGBT3CBY      | 2025-11-11 | Procesada     |    154588 |             6003 |           25.8
+ CLI-DNOWZ9     | NX-LYVUKWME      | 2026-03-03 | Procesada     |    155147 |             6049 |           25.6
+ CLI-SZQB1F     | NX-U73F3SEB      | 2026-01-28 | Procesada     |    156827 |             6191 |           25.3
+ CLI-MSGGPG     | NX-PBRX8E75      | 2025-03-25 | Procesada     |    150764 |             5990 |           25.2
+ CLI-3E4009     | NX-VB462WU5      | 2025-10-07 | Procesada     |     19217 |              769 |           25.0
+(15 filas)
+
+
+== F1 · operaciones_30d (top 5) ==
+ id_cliente | operaciones_30d 
+------------+-----------------
+      28639 |             405
+      20069 |             329
+      43563 |             159
+      27704 |             147
+      26956 |             145
+(5 filas)
+
+
+== F2 · monto_promedio_usd_90d (top 5) ==
+ id_cliente | monto_promedio_usd_90d 
+------------+------------------------
+      38369 |               41506.00
+      48123 |               33065.98
+      20673 |               32671.23
+      47435 |               27974.12
+      47804 |               27738.70
+(5 filas)
+
+
+== F3 · dias_desde_ultima_operacion (distribución) ==
+ tramo | desde | hasta | clientes 
+-------+-------+-------+----------
+     1 |     0 |    99 |    24115
+     2 |   100 |   199 |     3614
+     3 |   200 |   299 |     2794
+     4 |   300 |   399 |     2146
+     5 |   400 |   499 |     1518
+     6 |   500 |   599 |      893
+     7 |   600 |   659 |      358
+(7 filas)
+
+
+== F4 · ratio_rechazo (clientes con 10+ decisiones, top 5) ==
+ id_cliente | decididas | ratio_rechazo 
+------------+-----------+---------------
+      15359 |        12 |         0.667
+      21533 |        10 |         0.600
+      10294 |        12 |         0.583
+      32231 |        11 |         0.545
+      49651 |        10 |         0.500
+(5 filas)
+
+
+== F5 · ratio_cerca_umbral_90d (top 5) ==
+ id_cliente | operaciones_90d | ratio_cerca_umbral_90d 
+------------+-----------------+------------------------
+      49651 |              10 |                  1.000
+      32532 |              71 |                  0.901
+       3994 |              75 |                  0.893
+      44552 |              41 |                  0.878
+      48437 |               8 |                  0.875
+(5 filas)
+
+
+== F6 · ratio_cuentas_terceros (top 5) ==
+ id_cliente | operaciones_a_banco | cuentas_destino | ratio_cuentas_terceros 
+------------+---------------------+-----------------+------------------------
+       6392 |                 201 |             169 |                  0.980
+       3495 |                  39 |              33 |                  0.974
+      31730 |                  25 |              22 |                  0.960
+      16165 |                 117 |              87 |                  0.957
+      20639 |                  23 |              20 |                  0.957
+(5 filas)
+
+
+== F7 · variacion_monto_30d (top 5) ==
+ id_cliente | ticket_30d | ticket_previo | variacion_monto_30d 
+------------+------------+---------------+---------------------
+      40396 |   11964.79 |        387.12 |               30.91
+      23017 |    5987.26 |        238.94 |               25.06
+      32352 |    5405.58 |        217.51 |               24.85
+      41985 |    7127.25 |        295.86 |               24.09
+      42155 |    3807.14 |        173.96 |               21.89
+(5 filas)
+
+
+== F8 · ratio_nocturno (top 5) ==
+ id_cliente | operaciones | ratio_nocturno 
+------------+-------------+----------------
+      38495 |           6 |          1.000
+      37754 |           5 |          1.000
+       4342 |           9 |          1.000
+      37244 |           7 |          0.857
+      39720 |           7 |          0.857
+(5 filas)
+
+CREATE VIEW
+COMMENT
+
+== Vector de features: resumen ==
+ clientes | operaciones_30d_prom | monto_promedio_usd_90d_prom | dias_desde_ultima_prom | ratio_rechazo_prom | ratio_cerca_umbral_prom | ratio_cuentas_terceros_prom | ratio_nocturno_prom 
+----------+----------------------+-----------------------------+------------------------+--------------------+-------------------------+-----------------------------+---------------------
+    35438 |                 2.31 |                     1528.65 |                    107 |              0.081 |                   0.009 |                       0.002 |               0.011
+(1 fila)
+
+CREATE TABLE
+COPY 509
+
+== Validación: promedio de cada feature por perfil ==
+   perfil    | clientes | operaciones_30d | monto_prom_usd_90d | ratio_rechazo | ratio_cerca_umbral | ratio_cuentas_terceros | variacion_monto_30d | ratio_nocturno 
+-------------+----------+-----------------+--------------------+---------------+--------------------+------------------------+---------------------+----------------
+ normal      |    34946 |             2.2 |               1489 |         0.079 |              0.004 |                  0.000 |                1.38 |          0.009
+ pitufeo     |      160 |            30.3 |               7322 |         0.215 |              0.754 |                  0.000 |                1.00 |          0.009
+ pico        |      122 |             2.3 |               1115 |         0.223 |              0.001 |                  0.000 |                2.61 |          0.012
+ multicuenta |      119 |             1.7 |                596 |         0.296 |              0.000 |                  0.646 |                1.24 |          0.009
+ nocturno    |       91 |             1.6 |               3256 |         0.198 |              0.007 |                  0.000 |                1.13 |          0.651
+(5 filas)
+
