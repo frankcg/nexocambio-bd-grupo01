@@ -1,0 +1,350 @@
+SET
+psql:sql/05_indexes.sql:15: NOTICE:  el índice «idx_operacion_estado_fecha» no existe, omitiendo
+psql:sql/05_indexes.sql:15: NOTICE:  el índice «idx_cotizacion_fecha_btree» no existe, omitiendo
+DROP INDEX
+ANALYZE
+ANALYZE
+
+=========== O1 · ANTES (sin índice en operacion.id_cliente) ===========
+                                                                       QUERY PLAN                                                                       
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=23004.76..23004.79 rows=11 width=52) (actual time=150.825..163.272 rows=26.00 loops=1)
+   Sort Key: o.fecha_operacion DESC
+   Sort Method: quicksort  Memory: 26kB
+   Buffers: shared hit=12138 read=3232
+   ->  Gather  (cost=1000.43..23004.57 rows=11 width=52) (actual time=128.952..163.201 rows=26.00 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=12138 read=3232
+         ->  Nested Loop  (cost=0.43..22003.47 rows=5 width=52) (actual time=63.125..81.190 rows=8.67 loops=3)
+               Buffers: shared hit=12138 read=3232
+               ->  Parallel Seq Scan on operacion o  (cost=0.00..21961.24 rows=5 width=38) (actual time=60.193..77.537 rows=8.67 loops=3)
+                     Filter: ((id_cliente = 41768) AND (fecha_operacion >= ('2026-10-22 00:00:00-05'::timestamp with time zone - '90 days'::interval)))
+                     Rows Removed by Filter: 306151
+                     Buffers: shared hit=12078 read=3186
+               ->  Index Scan using cotizacion_pkey on cotizacion q  (cost=0.43..8.45 rows=1 width=30) (actual time=0.415..0.415 rows=1.00 loops=26)
+                     Index Cond: (id_cotizacion = o.id_cotizacion)
+                     Index Searches: 26
+                     Buffers: shared hit=60 read=46
+ Planning:
+   Buffers: shared hit=162 read=7
+ Planning Time: 2.770 ms
+ Execution Time: 163.338 ms
+(22 filas)
+
+CREATE INDEX
+ANALYZE
+
+=========== O1 · DESPUÉS (idx_operacion_cliente_fecha) ===========
+                                                                      QUERY PLAN                                                                      
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=0.85..131.71 rows=11 width=52) (actual time=0.357..0.569 rows=26.00 loops=1)
+   Buffers: shared hit=133 read=3
+   ->  Index Scan using idx_operacion_cliente_fecha on operacion o  (cost=0.43..38.82 rows=11 width=38) (actual time=0.334..0.380 rows=26.00 loops=1)
+         Index Cond: ((id_cliente = 41768) AND (fecha_operacion >= ('2026-10-22 00:00:00-05'::timestamp with time zone - '90 days'::interval)))
+         Index Searches: 1
+         Buffers: shared hit=29 read=3
+   ->  Index Scan using cotizacion_pkey on cotizacion q  (cost=0.43..8.45 rows=1 width=30) (actual time=0.006..0.006 rows=1.00 loops=26)
+         Index Cond: (id_cotizacion = o.id_cotizacion)
+         Index Searches: 26
+         Buffers: shared hit=104
+ Planning:
+   Buffers: shared hit=56 read=1
+ Planning Time: 0.656 ms
+ Execution Time: 0.611 ms
+(14 filas)
+
+
+=========== O2 · ANTES (sin índice) ===========
+                                                                     QUERY PLAN                                                                     
+----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=21049.98..21390.04 rows=50 width=41) (actual time=166.072..178.626 rows=50.00 loops=1)
+   Buffers: shared hit=12883 read=2613
+   ->  Nested Loop  (cost=21049.98..22090.56 rows=153 width=41) (actual time=166.070..178.611 rows=50.00 loops=1)
+         Buffers: shared hit=12883 read=2613
+         ->  Gather Merge  (cost=21049.69..21067.51 rows=153 width=38) (actual time=165.872..175.010 rows=50.00 loops=1)
+               Workers Planned: 2
+               Workers Launched: 2
+               Buffers: shared hit=12822 read=2524
+               ->  Sort  (cost=20049.66..20049.82 rows=64 width=38) (actual time=101.332..101.339 rows=50.33 loops=3)
+                     Sort Key: o.fecha_operacion
+                     Sort Method: quicksort  Memory: 31kB
+                     Buffers: shared hit=12822 read=2524
+                     Worker 0:  Sort Method: quicksort  Memory: 31kB
+                     Worker 1:  Sort Method: quicksort  Memory: 29kB
+                     ->  Parallel Seq Scan on operacion o  (cost=0.00..20047.74 rows=64 width=38) (actual time=101.113..101.187 rows=72.33 loops=3)
+                           Filter: ((estado_actual)::text = ANY ('{"Pendiente de validación","En proceso"}'::text[]))
+                           Rows Removed by Filter: 306087
+                           Buffers: shared hit=12746 read=2524
+         ->  Index Scan using cliente_pkey on cliente c  (cost=0.29..6.69 rows=1 width=19) (actual time=0.069..0.069 rows=1.00 loops=50)
+               Index Cond: (id_cliente = o.id_cliente)
+               Index Searches: 50
+               Buffers: shared hit=61 read=89
+ Planning:
+   Buffers: shared hit=64 read=8
+ Planning Time: 0.778 ms
+ Execution Time: 178.689 ms
+(26 filas)
+
+CREATE INDEX
+CREATE INDEX
+
+=========== O2 · Tamaño: índice completo vs. parcial ===========
+            indice             | tamano 
+-------------------------------+--------
+ idx_operacion_estado_fecha    | 36 MB
+ idx_operacion_cola_backoffice | 16 kB
+(2 filas)
+
+DROP INDEX
+ANALYZE
+
+=========== O2 · DESPUÉS (idx_operacion_cola_backoffice, parcial) ===========
+                                                                          QUERY PLAN                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.44..261.00 rows=50 width=41) (actual time=0.136..0.440 rows=50.00 loops=1)
+   Buffers: shared hit=155 read=1
+   ->  Nested Loop  (cost=0.44..2074.50 rows=398 width=41) (actual time=0.135..0.431 rows=50.00 loops=1)
+         Buffers: shared hit=155 read=1
+         ->  Index Scan using idx_operacion_cola_backoffice on operacion o  (cost=0.15..24.12 rows=398 width=38) (actual time=0.103..0.123 rows=50.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=5 read=1
+         ->  Index Scan using cliente_pkey on cliente c  (cost=0.29..5.15 rows=1 width=19) (actual time=0.005..0.005 rows=1.00 loops=50)
+               Index Cond: (id_cliente = o.id_cliente)
+               Index Searches: 50
+               Buffers: shared hit=150
+ Planning:
+   Buffers: shared hit=55 read=1
+ Planning Time: 3.712 ms
+ Execution Time: 0.486 ms
+(15 filas)
+
+
+=========== O3 · Correlación física de fecha_cotizacion ===========
+     attname      | correlacion 
+------------------+-------------
+ fecha_cotizacion |      1.0000
+(1 fila)
+
+
+=========== O3 · ANTES (sin índice en fecha_cotizacion) ===========
+                                                                                              QUERY PLAN                                                                                              
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=63697.80..63698.44 rows=2 width=21) (actual time=590.985..602.844 rows=2.00 loops=1)
+   Group Key: q.modalidad
+   Buffers: shared hit=15434 read=28462
+   ->  Gather Merge  (cost=63697.80..63698.39 rows=5 width=21) (actual time=590.950..602.825 rows=6.00 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=15434 read=28462
+         ->  Sort  (cost=62697.78..62697.78 rows=2 width=21) (actual time=479.422..479.430 rows=2.00 loops=3)
+               Sort Key: q.modalidad
+               Sort Method: quicksort  Memory: 25kB
+               Buffers: shared hit=15434 read=28462
+               Worker 0:  Sort Method: quicksort  Memory: 25kB
+               Worker 1:  Sort Method: quicksort  Memory: 25kB
+               ->  Partial HashAggregate  (cost=62697.75..62697.77 rows=2 width=21) (actual time=479.332..479.339 rows=2.00 loops=3)
+                     Group Key: q.modalidad
+                     Batches: 1  Memory Usage: 32kB
+                     Buffers: shared hit=15418 read=28462
+                     Worker 0:  Batches: 1  Memory Usage: 32kB
+                     Worker 1:  Batches: 1  Memory Usage: 32kB
+                     ->  Parallel Hash Right Join  (cost=42046.77..62142.35 rows=74053 width=13) (actual time=417.796..461.285 rows=57209.67 loops=3)
+                           Hash Cond: (o.id_cotizacion = q.id_cotizacion)
+                           Buffers: shared hit=15418 read=28462
+                           ->  Parallel Seq Scan on operacion o  (cost=0.00..19091.00 rows=382700 width=16) (actual time=2.082..49.965 rows=306159.67 loops=3)
+                                 Buffers: shared hit=13181 read=2083
+                           ->  Parallel Hash  (cost=41121.11..41121.11 rows=74053 width=13) (actual time=264.755..264.756 rows=57209.67 loops=3)
+                                 Buckets: 262144  Batches: 1  Memory Usage: 10144kB
+                                 Buffers: shared hit=2237 read=26379
+                                 ->  Parallel Seq Scan on cotizacion q  (cost=0.00..41121.11 rows=74053 width=13) (actual time=203.367..239.228 rows=57209.67 loops=3)
+                                       Filter: ((fecha_cotizacion >= '2026-09-01 00:00:00-05'::timestamp with time zone) AND (fecha_cotizacion < '2026-10-01 00:00:00-05'::timestamp with time zone))
+                                       Rows Removed by Filter: 609729
+                                       Buffers: shared hit=2237 read=26379
+ Planning:
+   Buffers: shared hit=36 read=1
+ Planning Time: 0.850 ms
+ Execution Time: 602.950 ms
+(35 filas)
+
+CREATE INDEX
+ANALYZE
+
+=========== O3 · DESPUÉS con B-tree ===========
+                                                                                                QUERY PLAN                                                                                                
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=29376.99..29377.63 rows=2 width=21) (actual time=441.831..453.016 rows=2.00 loops=1)
+   Group Key: q.modalidad
+   Buffers: shared hit=14458 read=3928
+   ->  Gather Merge  (cost=29376.99..29377.58 rows=5 width=21) (actual time=441.801..452.999 rows=6.00 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=14458 read=3928
+         ->  Sort  (cost=28376.97..28376.98 rows=2 width=21) (actual time=321.402..321.408 rows=2.00 loops=3)
+               Sort Key: q.modalidad
+               Sort Method: quicksort  Memory: 25kB
+               Buffers: shared hit=14458 read=3928
+               Worker 0:  Sort Method: quicksort  Memory: 25kB
+               Worker 1:  Sort Method: quicksort  Memory: 25kB
+               ->  Partial HashAggregate  (cost=28376.94..28376.96 rows=2 width=21) (actual time=321.325..321.332 rows=2.00 loops=3)
+                     Group Key: q.modalidad
+                     Batches: 1  Memory Usage: 32kB
+                     Buffers: shared hit=14442 read=3928
+                     Worker 0:  Batches: 1  Memory Usage: 32kB
+                     Worker 1:  Batches: 1  Memory Usage: 32kB
+                     ->  Parallel Hash Right Join  (cost=7739.14..27834.73 rows=72295 width=13) (actual time=254.676..303.455 rows=57209.67 loops=3)
+                           Hash Cond: (o.id_cotizacion = q.id_cotizacion)
+                           Buffers: shared hit=14442 read=3928
+                           ->  Parallel Seq Scan on operacion o  (cost=0.00..19091.00 rows=382700 width=16) (actual time=2.114..58.997 rows=306159.67 loops=3)
+                                 Buffers: shared hit=12183 read=3081
+                           ->  Parallel Hash  (cost=6835.46..6835.46 rows=72295 width=13) (actual time=69.334..69.335 rows=57209.67 loops=3)
+                                 Buckets: 262144  Batches: 1  Memory Usage: 10144kB
+                                 Buffers: shared hit=2259 read=847
+                                 ->  Parallel Index Scan using idx_cotizacion_fecha_btree on cotizacion q  (cost=0.43..6835.46 rows=72295 width=13) (actual time=1.847..40.167 rows=57209.67 loops=3)
+                                       Index Cond: ((fecha_cotizacion >= '2026-09-01 00:00:00-05'::timestamp with time zone) AND (fecha_cotizacion < '2026-10-01 00:00:00-05'::timestamp with time zone))
+                                       Index Searches: 1
+                                       Buffers: shared hit=2259 read=847
+ Planning:
+   Buffers: shared hit=44 read=1
+ Planning Time: 1.484 ms
+ Execution Time: 453.152 ms
+(35 filas)
+
+CREATE INDEX
+
+=========== O3 · Tamaño: B-tree vs. BRIN ===========
+           indice           | tamano 
+----------------------------+--------
+ idx_cotizacion_fecha_btree | 43 MB
+ idx_cotizacion_fecha_brin  | 24 kB
+(2 filas)
+
+DROP INDEX
+ANALYZE
+
+=========== O3 · DESPUÉS con BRIN ===========
+                                                                                                   QUERY PLAN                                                                                                   
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=52330.82..52331.46 rows=2 width=21) (actual time=415.877..427.062 rows=2.00 loops=1)
+   Group Key: q.modalidad
+   Buffers: shared hit=14667 read=3178
+   ->  Gather Merge  (cost=52330.82..52331.40 rows=5 width=21) (actual time=415.844..427.044 rows=6.00 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=14667 read=3178
+         ->  Sort  (cost=51330.80..51330.80 rows=2 width=21) (actual time=276.825..276.831 rows=2.00 loops=3)
+               Sort Key: q.modalidad
+               Sort Method: quicksort  Memory: 25kB
+               Buffers: shared hit=14667 read=3178
+               Worker 0:  Sort Method: quicksort  Memory: 25kB
+               Worker 1:  Sort Method: quicksort  Memory: 25kB
+               ->  Partial HashAggregate  (cost=51330.77..51330.79 rows=2 width=21) (actual time=276.764..276.771 rows=2.00 loops=3)
+                     Group Key: q.modalidad
+                     Batches: 1  Memory Usage: 32kB
+                     Buffers: shared hit=14651 read=3178
+                     Worker 0:  Batches: 1  Memory Usage: 32kB
+                     Worker 1:  Batches: 1  Memory Usage: 32kB
+                     ->  Parallel Hash Right Join  (cost=30692.70..50788.28 rows=72331 width=13) (actual time=210.792..256.919 rows=57209.67 loops=3)
+                           Hash Cond: (o.id_cotizacion = q.id_cotizacion)
+                           Buffers: shared hit=14651 read=3178
+                           ->  Parallel Seq Scan on operacion o  (cost=0.00..19091.00 rows=382700 width=16) (actual time=0.728..58.883 rows=306159.67 loops=3)
+                                 Buffers: shared hit=12179 read=3085
+                           ->  Parallel Hash  (cost=29788.56..29788.56 rows=72331 width=13) (actual time=49.551..49.553 rows=57209.67 loops=3)
+                                 Buckets: 262144  Batches: 1  Memory Usage: 10144kB
+                                 Buffers: shared hit=2472 read=93
+                                 ->  Parallel Bitmap Heap Scan on cotizacion q  (cost=56.04..29788.56 rows=72331 width=13) (actual time=1.519..36.752 rows=85814.50 loops=2)
+                                       Recheck Cond: ((fecha_cotizacion >= '2026-09-01 00:00:00-05'::timestamp with time zone) AND (fecha_cotizacion < '2026-10-01 00:00:00-05'::timestamp with time zone))
+                                       Rows Removed by Index Recheck: 3802
+                                       Heap Blocks: lossy=2004
+                                       Buffers: shared hit=2472 read=93
+                                       Worker 0:  Heap Blocks: lossy=556
+                                       ->  Bitmap Index Scan on idx_cotizacion_fecha_brin  (cost=0.00..12.64 rows=178644 width=0) (actual time=0.200..0.200 rows=25600.00 loops=1)
+                                             Index Cond: ((fecha_cotizacion >= '2026-09-01 00:00:00-05'::timestamp with time zone) AND (fecha_cotizacion < '2026-10-01 00:00:00-05'::timestamp with time zone))
+                                             Index Searches: 1
+                                             Buffers: shared hit=5
+ Planning:
+   Buffers: shared hit=54
+ Planning Time: 2.828 ms
+ Execution Time: 427.180 ms
+(41 filas)
+
+CREATE INDEX
+ANALYZE
+
+=========== O3 · DESPUÉS con BRIN + reescritura (rango también en operacion) ===========
+                                                                                                              QUERY PLAN                                                                                                               
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=47854.82..47855.46 rows=2 width=21) (actual time=163.714..174.816 rows=2.00 loops=1)
+   Group Key: q.modalidad
+   Buffers: shared hit=4028
+   ->  Gather Merge  (cost=47854.82..47855.40 rows=5 width=21) (actual time=163.682..174.798 rows=6.00 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=4028
+         ->  Sort  (cost=46854.79..46854.80 rows=2 width=21) (actual time=103.433..103.440 rows=2.00 loops=3)
+               Sort Key: q.modalidad
+               Sort Method: quicksort  Memory: 25kB
+               Buffers: shared hit=4028
+               Worker 0:  Sort Method: quicksort  Memory: 25kB
+               Worker 1:  Sort Method: quicksort  Memory: 25kB
+               ->  Partial HashAggregate  (cost=46854.76..46854.78 rows=2 width=21) (actual time=103.340..103.348 rows=2.00 loops=3)
+                     Group Key: q.modalidad
+                     Batches: 1  Memory Usage: 32kB
+                     Buffers: shared hit=4012
+                     Worker 0:  Batches: 1  Memory Usage: 32kB
+                     Worker 1:  Batches: 1  Memory Usage: 32kB
+                     ->  Parallel Hash Left Join  (cost=16389.89..46312.28 rows=72331 width=13) (actual time=27.339..83.015 rows=57209.67 loops=3)
+                           Hash Cond: (q.id_cotizacion = o.id_cotizacion)
+                           Buffers: shared hit=4012
+                           ->  Parallel Bitmap Heap Scan on cotizacion q  (cost=56.04..29788.56 rows=72331 width=13) (actual time=1.761..25.196 rows=57209.67 loops=3)
+                                 Recheck Cond: ((fecha_cotizacion >= '2026-09-01 00:00:00-05'::timestamp with time zone) AND (fecha_cotizacion < '2026-10-01 00:00:00-05'::timestamp with time zone))
+                                 Rows Removed by Index Recheck: 2534
+                                 Heap Blocks: lossy=976
+                                 Buffers: shared hit=2602
+                                 Worker 0:  Heap Blocks: lossy=839
+                                 Worker 1:  Heap Blocks: lossy=745
+                                 ->  Bitmap Index Scan on idx_cotizacion_fecha_brin  (cost=0.00..12.64 rows=178644 width=0) (actual time=0.279..0.279 rows=25600.00 loops=1)
+                                       Index Cond: ((fecha_cotizacion >= '2026-09-01 00:00:00-05'::timestamp with time zone) AND (fecha_cotizacion < '2026-10-01 00:00:00-05'::timestamp with time zone))
+                                       Index Searches: 1
+                                       Buffers: shared hit=2
+                           ->  Parallel Hash  (cost=15910.59..15910.59 rows=33861 width=16) (actual time=25.239..25.241 rows=26325.00 loops=3)
+                                 Buckets: 131072  Batches: 1  Memory Usage: 4736kB
+                                 Buffers: shared hit=1410
+                                 ->  Parallel Bitmap Heap Scan on operacion o  (cost=32.67..15910.59 rows=33861 width=16) (actual time=0.633..37.487 rows=78975.00 loops=1)
+                                       Recheck Cond: ((fecha_operacion >= '2026-09-01 00:00:00-05'::timestamp with time zone) AND (fecha_operacion < ('2026-10-01 00:00:00-05'::timestamp with time zone + '00:15:00'::interval)))
+                                       Rows Removed by Index Recheck: 5912
+                                       Heap Blocks: lossy=1408
+                                       Buffers: shared hit=1410
+                                       ->  Bitmap Index Scan on idx_operacion_fecha_brin  (cost=0.00..12.35 rows=84194 width=0) (actual time=0.109..0.109 rows=14080.00 loops=1)
+                                             Index Cond: ((fecha_operacion >= '2026-09-01 00:00:00-05'::timestamp with time zone) AND (fecha_operacion < ('2026-10-01 00:00:00-05'::timestamp with time zone + '00:15:00'::interval)))
+                                             Index Searches: 1
+                                             Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=65 read=1
+ Planning Time: 2.641 ms
+ Execution Time: 174.922 ms
+(49 filas)
+
+
+=========== O3 · Verificación: ambas versiones devuelven lo mismo (0 filas = idénticas) ===========
+ modalidad | count | count 
+-----------+-------+-------
+(0 filas)
+
+
+=========== O3 · Supuesto de la reescritura: demora máxima cotización → operación ===========
+ demora_maxima 
+---------------
+ 00:03:59
+(1 fila)
+
+
+=========== Índices finales ===========
+   tabla    |            indice             | tamano 
+------------+-------------------------------+--------
+ cotizacion | idx_cotizacion_fecha_brin     | 24 kB
+ operacion  | idx_operacion_cliente_fecha   | 28 MB
+ operacion  | idx_operacion_cola_backoffice | 16 kB
+ operacion  | idx_operacion_fecha_brin      | 24 kB
+(4 filas)
+
