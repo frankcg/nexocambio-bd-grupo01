@@ -25,7 +25,7 @@ psql -h localhost -p 5433 -U postgres -d nexocambio -f pruebas/pruebas_restricci
 ```
 python generador/generar_datos.py          # ~5 min; CSV en grupo_01/datos/completo/ (no se versionan)
 cd grupo_01
-psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/03_data.sql   # ~10 min
+psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/03_data.sql   # ~11 min
 ```
 Volumen (enero 2025 – octubre 2026): 50 mil clientes, 225 mil cuentas, 1,1 millones de tasas,
 2 millones de cotizaciones, 918 mil operaciones, 959 mil comprobantes y 3,5 millones de
