@@ -202,8 +202,8 @@ Es lo que el servicio de scoring arma con los resultados del *pipeline* y entreg
 
 | Estructura | Elementos (hoy) | Tamaño aproximado |
 |---|---|---|
-| `cli:{id}:perfil` | 50 000 clientes × ~15 campos | ≈ 20 MB |
-| `cli:{id}:diario` | 23 700 activos × ~50 campos (120 días) | ≈ 60 MB |
+| `cli:{id}:perfil` | 50 000 clientes × ≈ 15 campos | ≈ 20 MB |
+| `cli:{id}:diario` | 23 700 activos × ≈ 50 campos (120 días) | ≈ 60 MB |
 | `ops24h`, `destinos` | 7–90 días por cliente activo | ≈ 15 MB |
 | `cta:{…}:clientes` | ≈ 160 000 cuentas bancarias | ≈ 25 MB |
 | `op:{…}:riesgo` + `cola:riesgo` | ≈ 80 000 operaciones (30 días) | ≈ 30 MB |

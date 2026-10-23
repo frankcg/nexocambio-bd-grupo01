@@ -50,7 +50,7 @@ Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transacc
 <text x="770" y="392" text-anchor="middle">4 · score, motivos y cola priorizada por riesgo</text>
 <text x="700" y="106">5 · WAL</text>
 <text x="902" y="230">6 · eventos</text>
-<text x="1003" y="259" font-size="10.5">ZADD · HINCRBY</text>
+<text x="1000" y="258" font-size="10">ZADD · HINCRBY</text>
 <text x="1030" y="455">7 · histórico</text>
 <text x="552" y="440">8 · export nocturno</text>
 <text x="552" y="455" fill="#5a6675">v_features_cliente</text>
