@@ -1,0 +1,76 @@
+/* NexoCambio · estilos de impresión de los documentos del proyecto */
+:root {
+  --tinta: #1d2733;
+  --suave: #5a6675;
+  --acento: #0f5b78;
+  --linea: #d5dbe1;
+  --fondo-tabla: #f3f6f8;
+  --codigo: #f6f8fa;
+}
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0; background: #fff; color: var(--tinta);
+  font-family: "Segoe UI", Calibri, Arial, sans-serif; font-size: 10.5pt; line-height: 1.45;
+}
+h1 {
+  font-size: 19pt; color: var(--acento); margin: 0 0 10pt;
+  padding-bottom: 5pt; border-bottom: 2px solid var(--acento);
+  break-before: page;
+}
+h1:first-of-type { break-before: avoid; }
+h2 { font-size: 13.5pt; color: var(--acento); margin: 16pt 0 6pt; break-after: avoid; }
+h3 { font-size: 11.5pt; margin: 12pt 0 4pt; break-after: avoid; }
+h4 { font-size: 10.5pt; margin: 10pt 0 3pt; color: var(--suave); break-after: avoid; }
+p, li { orphans: 3; widows: 3; }
+p { margin: 4pt 0 7pt; }
+ul, ol { margin: 3pt 0 8pt; padding-left: 18pt; }
+li { margin: 1.5pt 0; }
+a { color: var(--acento); text-decoration: none; }
+strong { color: #111; }
+hr { border: 0; border-top: 1px solid var(--linea); margin: 12pt 0; }
+
+table {
+  border-collapse: collapse; width: 100%; margin: 6pt 0 10pt;
+  font-size: 8.8pt; break-inside: auto;
+}
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+th {
+  background: var(--fondo-tabla); color: var(--tinta); text-align: left;
+  font-weight: 600; border-bottom: 1.5px solid var(--acento);
+}
+th, td { padding: 3pt 5pt; border-bottom: 1px solid var(--linea); vertical-align: top; }
+td code { white-space: nowrap; }
+
+code {
+  font-family: Consolas, "Cascadia Mono", monospace; font-size: 8.6pt;
+  background: var(--codigo); padding: 0 2pt; border-radius: 2px;
+}
+pre {
+  background: var(--codigo); border: 1px solid var(--linea); border-left: 3px solid var(--acento);
+  padding: 6pt 8pt; margin: 5pt 0 9pt; white-space: pre-wrap; word-break: break-word;
+  font-size: 8pt; line-height: 1.35; break-inside: auto;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+blockquote {
+  margin: 6pt 0 10pt; padding: 5pt 10pt; border-left: 3px solid var(--acento);
+  background: #eef5f8; color: var(--tinta);
+}
+blockquote p { margin: 2pt 0; }
+
+.mermaid { text-align: center; margin: 8pt 0 12pt; break-inside: avoid; }
+.mermaid svg { max-width: 100%; max-height: 222mm; height: auto; }
+.mermaid.compacto svg { max-height: 150mm; }
+
+/* Portada */
+.portada { height: 245mm; display: flex; flex-direction: column; justify-content: center; break-after: page; }
+.portada .institucion { color: var(--suave); font-size: 11pt; letter-spacing: .5pt; text-transform: uppercase; }
+.portada .titulo { font-size: 30pt; font-weight: 700; color: var(--acento); margin: 14pt 0 4pt; line-height: 1.1; }
+.portada .subtitulo { font-size: 15pt; color: var(--tinta); margin-bottom: 26pt; }
+.portada .datos { border-top: 2px solid var(--acento); padding-top: 10pt; font-size: 11pt; }
+.portada .datos p { margin: 3pt 0; }
+
+.nota { color: var(--suave); font-size: 9pt; }
+.metricas td:nth-child(n+2), .metricas th:nth-child(n+2) { text-align: right; }

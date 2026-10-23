@@ -10,3 +10,6 @@ __pycache__/
 # Credenciales
 .env
 pgpass.conf
+
+# HTML intermedio de los PDF
+docs/fuentes/_html/
