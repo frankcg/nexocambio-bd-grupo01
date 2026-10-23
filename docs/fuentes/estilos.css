@@ -74,3 +74,5 @@ blockquote p { margin: 2pt 0; }
 
 .nota { color: var(--suave); font-size: 9pt; }
 .metricas td:nth-child(n+2), .metricas th:nth-child(n+2) { text-align: right; }
+.diagrama { margin: 4pt 0 8pt; break-inside: avoid; }
+.diagrama svg { width: 100%; height: auto; max-height: 122mm; }
