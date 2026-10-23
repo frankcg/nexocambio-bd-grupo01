@@ -1,0 +1,12 @@
+# Datos generados (se reproducen con generador/generar_datos.py)
+generador/salida/
+*.csv
+!grupo_01/datos/dataset.csv
+
+# Python
+__pycache__/
+.venv/
+
+# Credenciales
+.env
+pgpass.conf
