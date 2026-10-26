@@ -1,7 +1,8 @@
 -- =============================================================================
 -- NexoCambio · 05_indexes.sql
--- Optimización: cada caso mide la consulta con EXPLAIN ANALYZE, crea un índice
--- justificado por su patrón de acceso y vuelve a medir.
+-- Optimización: cada caso muestra el plan estimado con EXPLAIN, mide la ejecución real
+-- con EXPLAIN (ANALYZE, BUFFERS), crea un índice justificado por su patrón de acceso
+-- y vuelve a medir.
 --
 -- El script empieza borrando los índices que crea, así que siempre parte del mismo
 -- estado (solo los índices de PRIMARY KEY y UNIQUE). Para comparar con la caché
@@ -25,6 +26,16 @@ SELECT id_cliente AS cliente_demo FROM cliente WHERE codigo_cliente = 'CLI-06EZN
 -- Patrón: GET /operaciones (pantalla "Mis operaciones") y cálculo de features en
 -- línea. Es la consulta más frecuente de la aplicación: una por cliente que entra.
 -- #############################################################################
+\echo '\n=========== O1 · EXPLAIN (plan estimado: no ejecuta la consulta) ==========='
+EXPLAIN
+SELECT o.codigo_operacion, o.fecha_operacion, o.estado_actual,
+       q.moneda_origen, q.moneda_destino, q.monto_origen, q.monto_destino
+FROM operacion o
+JOIN cotizacion q ON q.id_cotizacion = o.id_cotizacion
+WHERE o.id_cliente = :cliente_demo
+  AND o.fecha_operacion >= TIMESTAMPTZ '2026-10-22 00:00-05' - INTERVAL '90 days'
+ORDER BY o.fecha_operacion DESC;
+
 \echo '\n=========== O1 · ANTES (sin índice en operacion.id_cliente) ==========='
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT o.codigo_operacion, o.fecha_operacion, o.estado_actual,
@@ -59,6 +70,15 @@ ORDER BY o.fecha_operacion DESC;
 -- De 918 mil operaciones solo unas 200 están pendientes: el estado es muy selectivo
 -- pero está muy desbalanceado (el 87 % está "Procesada").
 -- #############################################################################
+\echo '\n=========== O2 · EXPLAIN (plan estimado: no ejecuta la consulta) ==========='
+EXPLAIN
+SELECT o.codigo_operacion, o.fecha_operacion, o.estado_actual, c.codigo_cliente
+FROM operacion o
+JOIN cliente c ON c.id_cliente = o.id_cliente
+WHERE o.estado_actual IN ('Pendiente de validación', 'En proceso')
+ORDER BY o.fecha_operacion
+LIMIT 50;
+
 \echo '\n=========== O2 · ANTES (sin índice) ==========='
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT o.codigo_operacion, o.fecha_operacion, o.estado_actual, c.codigo_cliente
@@ -107,6 +127,15 @@ LIMIT 50;
 SELECT attname, round(correlation::numeric, 4) AS correlacion
 FROM pg_stats
 WHERE schemaname = 'nexocambio' AND tablename = 'cotizacion' AND attname = 'fecha_cotizacion';
+
+\echo '\n=========== O3 · EXPLAIN (plan estimado: no ejecuta la consulta) ==========='
+EXPLAIN
+SELECT q.modalidad, count(*) AS cotizaciones, count(o.id_operacion) AS operaciones
+FROM cotizacion q
+LEFT JOIN operacion o ON o.id_cotizacion = q.id_cotizacion
+WHERE q.fecha_cotizacion >= TIMESTAMPTZ '2026-09-01 00:00-05'
+  AND q.fecha_cotizacion <  TIMESTAMPTZ '2026-10-01 00:00-05'
+GROUP BY q.modalidad;
 
 \echo '\n=========== O3 · ANTES (sin índice en fecha_cotizacion) ==========='
 EXPLAIN (ANALYZE, BUFFERS)

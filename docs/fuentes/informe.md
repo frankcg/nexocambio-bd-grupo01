@@ -602,9 +602,29 @@ Se cargan las etiquetas del generador en una tabla **temporal**, que no es parte
 
 # 6. Optimización de consultas e índices
 
-Se analizaron **tres consultas** con `EXPLAIN (ANALYZE, BUFFERS)`. Al inicio, las tablas solo tienen los índices que PostgreSQL crea automáticamente para PRIMARY KEY y UNIQUE. `05_indexes.sql` borra sus índices al empezar, así que siempre parte del mismo estado. Se ejecutó dos veces y se reporta la **segunda corrida** (caché caliente), para que la diferencia no se deba a lecturas de disco.
+Se analizaron **tres consultas**. En cada una se siguen cuatro pasos:
+
+1. **`EXPLAIN`**: plan *estimado* por el planificador (tipo de scan, costo y filas estimadas). No ejecuta la consulta, así que se puede usar sin riesgo incluso en producción.
+2. **`EXPLAIN (ANALYZE, BUFFERS)`**: ejecuta la consulta y agrega lo que realmente pasó (tiempo de cada nodo, filas reales, iteraciones y páginas leídas). Es la evidencia del "antes".
+3. **Índice o reescritura**, justificado por el patrón de acceso que muestra el plan.
+4. **`EXPLAIN (ANALYZE, BUFFERS)` de nuevo**, para comparar.
+
+Al inicio las tablas solo tienen los índices que PostgreSQL crea para PRIMARY KEY y UNIQUE. `05_indexes.sql` borra al empezar los índices que crea, así que cada corrida parte del mismo estado.
+
+**Cómo se midió.** El script se ejecutó **5 veces seguidas**. Los tiempos *sin* índice variaron bastante entre corridas, porque un Seq Scan paralelo depende de la caché y de la carga del equipo. Los tiempos *con* índice fueron estables. Por eso se reportan la **mediana y el rango** de las 5 corridas, y los planes que se muestran (y que se guardan en `resultados/05_indexes_resultados.txt`) corresponden a la corrida más cercana a la mediana.
 
 Entorno: PostgreSQL 18.6 en Windows, `shared_buffers` 128 MB, `work_mem` 4 MB y hasta 2 workers paralelos por consulta.
+
+<div class="metricas">
+
+| Consulta | Antes: mediana (rango) | Después: mediana (rango) | Mejora (medianas) |
+|---|---|---|---|
+| O1 · historial de un cliente | 170,7 ms (70,7 – 397,9) | **0,38 ms** (0,19 – 0,56) | ≈ 450× |
+| O2 · cola del back-office | 263,4 ms (108,1 – 728,0) | **0,39 ms** (0,34 – 1,00) | ≈ 675× |
+| O3 · embudo mensual, solo índice BRIN | 484,7 ms (414,9 – 1 503,2) | 286,4 ms (202,7 – 524,1) | ≈ 1,7× |
+| O3 · índice BRIN + reescritura | 484,7 ms (414,9 – 1 503,2) | **177,1 ms** (107,7 – 221,1) | ≈ 2,7× |
+
+</div>
 
 ## O1 · Historial de un cliente en los últimos 90 días
 
@@ -620,21 +640,41 @@ WHERE o.id_cliente = :cliente_demo                    -- CLI-06EZN7, cliente tí
 ORDER BY o.fecha_operacion DESC;
 ```
 
-**Plan antes** (líneas principales):
+**`EXPLAIN` (plan estimado):**
 
 ```
-Sort  (cost=23004.76..23004.79 rows=11) (actual time=… rows=26)
-  ->  Gather  Workers Planned: 2
-        ->  Nested Loop
-              ->  Parallel Seq Scan on operacion o  (cost=0.00..21961.24 rows=5) (actual rows=8.67 loops=3)
+Sort  (cost=23004.76..23004.79 rows=11 width=52)
+  Sort Key: o.fecha_operacion DESC
+  ->  Gather  (cost=1000.43..23004.57 rows=11 width=52)   Workers Planned: 2
+        ->  Nested Loop  (cost=0.43..22003.47 rows=5 width=52)
+              ->  Parallel Seq Scan on operacion o  (cost=0.00..21961.24 rows=5 width=38)
+                    Filter: ((id_cliente = 41768) AND (fecha_operacion >= …))
+              ->  Index Scan using cotizacion_pkey on cotizacion q  (cost=0.43..8.45 rows=1)
+```
+
+Sin ejecutar nada, el plan ya muestra el problema: un **Parallel Seq Scan sobre operacion**, que aporta 21 961 de las 23 004 unidades de costo (95 %).
+
+**`EXPLAIN (ANALYZE, BUFFERS)` antes:**
+
+```
+Sort  (cost=23004.76..23004.79 rows=11) (actual time=249.518..258.941 rows=26.00 loops=1)
+  Buffers: shared hit=11124 read=4246
+  ->  Gather  (actual time=234.363..258.907 rows=26.00 loops=1)
+        ->  Nested Loop  (actual time=145.497..158.407 rows=8.67 loops=3)
+              ->  Parallel Seq Scan on operacion o  (cost=0.00..21961.24 rows=5) (actual time=142.264..154.535 rows=8.67 loops=3)
                     Filter: ((id_cliente = 41768) AND (fecha_operacion >= …))
                     Rows Removed by Filter: 306151
-              ->  Index Scan using cotizacion_pkey on cotizacion q  (loops=26)
-Planning Time: 2.770 ms
-Execution Time: 163.338 ms
+                    Buffers: shared hit=11064 read=4200
+              ->  Index Scan using cotizacion_pkey on cotizacion q  (actual time=0.442..0.442 rows=1.00 loops=26)
+Planning Time: 0.334 ms
+Execution Time: 258.994 ms
 ```
 
-**Diagnóstico.** `operacion.id_cliente` es una FK, pero **PostgreSQL no indexa las FK automáticamente**. Para devolver 26 filas, el motor recorre las 918 mil operaciones con un Seq Scan paralelo: descarta 306 mil filas por worker y lee unas 15 mil páginas. Después necesita un Sort explícito. El costo está casi todo en el Seq Scan.
+**Diagnóstico.**
+
+- **Estimado frente a real:** el planificador esperaba 11 filas y salieron 26. Subestima porque multiplica la selectividad de las dos condiciones como si fueran independientes. El error no cambia la elección del plan.
+- **Operación más costosa:** el Seq Scan sobre operacion. Cada uno de los 3 procesos descarta 306 151 filas y en total se leen 15 264 páginas para devolver 26 filas. Después todavía hace falta un Sort.
+- **Cuello de botella:** `operacion.id_cliente` es una FK, pero **PostgreSQL no indexa las FK automáticamente**. El costo crece con el total de operaciones del negocio y no con las del cliente.
 
 **Optimización:**
 
@@ -642,31 +682,37 @@ Execution Time: 163.338 ms
 CREATE INDEX idx_operacion_cliente_fecha ON operacion (id_cliente, fecha_operacion DESC);
 ```
 
-**Por qué este índice.** La columna de **igualdad** (`id_cliente`) va primero y la de **rango** (`fecha_operacion`) después. El índice llega directo al bloque del cliente y, dentro de él, a las fechas recientes. El orden `DESC` coincide con el `ORDER BY`, así que las filas salen ya ordenadas y **desaparece el Sort**. De paso cubre la FK, lo que también acelera los borrados en cascada y las consultas C9 y F1–F8 por cliente.
+**Por qué este índice.**
 
-**Plan después:**
+- La columna de **igualdad** (`id_cliente`) va primero y la de **rango** (`fecha_operacion`) después: el índice llega directo al bloque del cliente y, dentro de él, a las fechas recientes.
+- El orden `DESC` coincide con el `ORDER BY`, así que las filas salen ya ordenadas y **desaparece el Sort**.
+- De paso cubre la FK, lo que también acelera los borrados en cascada y las consultas por cliente (C9, F1–F8).
+
+**`EXPLAIN (ANALYZE, BUFFERS)` después:**
 
 ```
-Nested Loop  (cost=0.85..131.37 rows=11) (actual rows=26)
-  ->  Index Scan using idx_operacion_cliente_fecha on operacion o  (cost=0.43..38.47 rows=11) (actual rows=26)
+Nested Loop  (cost=0.85..131.48 rows=11) (actual time=0.133..0.342 rows=26.00 loops=1)
+  Buffers: shared hit=133 read=3
+  ->  Index Scan using idx_operacion_cliente_fecha on operacion o  (cost=0.43..38.59 rows=11) (actual time=0.119..0.155 rows=26.00 loops=1)
         Index Cond: ((id_cliente = 41768) AND (fecha_operacion >= …))
-  ->  Index Scan using cotizacion_pkey on cotizacion q  (loops=26)
-Planning Time: 0.656 ms
-Execution Time: 0.611 ms
+  ->  Index Scan using cotizacion_pkey on cotizacion q  (actual time=0.006..0.006 rows=1.00 loops=26)
+Planning Time: 0.721 ms
+Execution Time: 0.379 ms
 ```
 
 <div class="metricas">
 
 | Métrica | Antes | Después |
 |---|---|---|
-| Tipo de acceso a `operacion` | Parallel Seq Scan | Index Scan (sin Sort) |
-| Costo estimado total | 23 004,79 | 131,37 |
+| Tipo de acceso a `operacion` | Parallel Seq Scan + Sort | Index Scan (sin Sort) |
+| Costo estimado total | 23 004,79 | 131,48 |
 | Filas estimadas / reales | 11 / 26 | 11 / 26 |
 | Filas evaluadas en `operacion` | 918 479 | 26 |
-| Páginas leídas (buffers) | ≈ 15 370 | ≈ 136 |
-| Planning Time | 2,770 ms | 0,656 ms |
-| Execution Time | **163,338 ms** | **0,611 ms** (≈ 267× más rápido) |
-| Índice utilizado | No | Sí (28 MB) |
+| Páginas leídas (buffers) | 15 370 | 136 |
+| Planning Time | 0,334 ms | 0,721 ms |
+| Execution Time (esta corrida) | **258,994 ms** | **0,379 ms** |
+| Execution Time (mediana de 5) | 170,654 ms | 0,379 ms |
+| Índice utilizado | No | Sí (`idx_operacion_cliente_fecha`, 28 MB) |
 
 </div>
 
@@ -683,22 +729,39 @@ ORDER BY o.fecha_operacion
 LIMIT 50;
 ```
 
-**Plan antes:**
+**`EXPLAIN` (plan estimado):**
 
 ```
-Limit  (cost=21049.98..21390.04 rows=50)
-  ->  Nested Loop
-        ->  Gather Merge  Workers Planned: 2
-              ->  Sort  Sort Key: o.fecha_operacion
-                    ->  Parallel Seq Scan on operacion o  (cost=0.00..20047.74 rows=64) (actual rows=72.33 loops=3)
+Limit  (cost=21050.94..21369.27 rows=50 width=41)
+  ->  Nested Loop  (cost=21050.94..22413.38 rows=214 width=41)
+        ->  Gather Merge  (cost=21050.65..21075.57 rows=214 width=38)   Workers Planned: 2
+              ->  Sort  (cost=20050.63..20050.85 rows=89 width=38)   Sort Key: o.fecha_operacion
+                    ->  Parallel Seq Scan on operacion o  (cost=0.00..20047.74 rows=89 width=38)
                           Filter: (estado_actual = ANY ('{"Pendiente de validación","En proceso"}'))
-                          Rows Removed by Filter: 306087
-        ->  Index Scan using cliente_pkey on cliente c  (loops=50)
-Planning Time: 0.778 ms
-Execution Time: 178.689 ms
+        ->  Index Scan using cliente_pkey on cliente c  (cost=0.29..6.25 rows=1)
 ```
 
-**Diagnóstico.** Para encontrar 217 filas abiertas, el motor lee **toda la tabla** y además las ordena. El costo es proporcional al histórico total, no al tamaño de la cola, así que la consulta se vuelve más lenta cada mes aunque la cola no crezca.
+**`EXPLAIN (ANALYZE, BUFFERS)` antes:**
+
+```
+Limit  (cost=21050.94..21369.27 rows=50) (actual time=248.892..263.294 rows=50.00 loops=1)
+  Buffers: shared hit=11841 read=3655
+  ->  Nested Loop  (actual time=248.890..263.281 rows=50.00 loops=1)
+        ->  Gather Merge  (actual time=248.700..249.827 rows=50.00 loops=1)
+              ->  Sort  (actual time=182.478..182.483 rows=72.33 loops=3)
+                    ->  Parallel Seq Scan on operacion o  (cost=0.00..20047.74 rows=89) (actual time=182.309..182.364 rows=72.33 loops=3)
+                          Rows Removed by Filter: 306087
+                          Buffers: shared hit=11704 read=3566
+        ->  Index Scan using cliente_pkey on cliente c  (actual time=0.267..0.267 rows=1.00 loops=50)
+Planning Time: 0.496 ms
+Execution Time: 263.357 ms
+```
+
+**Diagnóstico.**
+
+- **Estimado frente a real:** muy preciso. El planificador estimó 214 filas abiertas (89 por worker) y hay 217 (72,33 × 3), gracias a las estadísticas de valores frecuentes de `estado_actual`.
+- **Operación más costosa:** de nuevo el Seq Scan. Lee **toda** la tabla (15 270 páginas) para encontrar 217 filas y después las ordena.
+- **Cuello de botella:** el costo es proporcional al **histórico total**, no al tamaño de la cola. La consulta se vuelve más lenta cada mes aunque la cola no crezca.
 
 **Optimización: índice parcial**
 
@@ -707,17 +770,22 @@ CREATE INDEX idx_operacion_cola_backoffice ON operacion (fecha_operacion)
     WHERE estado_actual IN ('Pendiente de validación', 'En proceso');
 ```
 
-**Por qué un índice parcial.** El índice completo alternativo, `(estado_actual, fecha_operacion)`, ocupa **36 MB** porque indexa también las 800 mil operaciones cerradas que la cola nunca consulta. El índice parcial solo contiene las operaciones abiertas: ocupa **16 kB**, cabe en una página de memoria y sus entradas salen del índice cuando la operación se cierra. Su tamaño depende de la cola, no del histórico. Además está ordenado por `fecha_operacion`, así que resuelve el `ORDER BY … LIMIT 50` leyendo solo las primeras 50 entradas.
+**Por qué un índice parcial.**
 
-**Plan después:**
+- La alternativa, un índice completo `(estado_actual, fecha_operacion)`, ocupa **36 MB**, porque indexa también las 800 mil operaciones cerradas que la cola nunca consulta.
+- El índice parcial solo contiene las operaciones abiertas. Ocupa **16 kB** y sus entradas salen del índice cuando la operación se cierra, así que su tamaño depende de la cola y no del histórico.
+- Además está ordenado por `fecha_operacion`, así que resuelve el `ORDER BY … LIMIT 50` leyendo solo las primeras 50 entradas.
+
+**`EXPLAIN (ANALYZE, BUFFERS)` después:**
 
 ```
-Limit  (cost=0.43..328.17 rows=50)
-  ->  Nested Loop
-        ->  Index Scan using idx_operacion_cola_backoffice on operacion o  (cost=0.14..17.91 rows=184) (actual rows=50)
-        ->  Index Scan using cliente_pkey on cliente c  (loops=50)
-Planning Time: 3.712 ms
-Execution Time: 0.486 ms
+Limit  (cost=0.43..353.32 rows=50) (actual time=0.109..0.351 rows=50.00 loops=1)
+  Buffers: shared hit=155 read=1
+  ->  Nested Loop  (actual time=0.108..0.342 rows=50.00 loops=1)
+        ->  Index Scan using idx_operacion_cola_backoffice on operacion o  (cost=0.14..15.97 rows=122) (actual time=0.083..0.100 rows=50.00 loops=1)
+        ->  Index Scan using cliente_pkey on cliente c  (actual time=0.004..0.004 rows=1.00 loops=50)
+Planning Time: 2.544 ms
+Execution Time: 0.390 ms
 ```
 
 <div class="metricas">
@@ -725,20 +793,22 @@ Execution Time: 0.486 ms
 | Métrica | Antes | Después |
 |---|---|---|
 | Tipo de acceso | Parallel Seq Scan + Sort | Index Scan sobre índice parcial (sin Sort) |
-| Costo estimado | 21 390,04 | 328,17 |
-| Filas estimadas / reales (operacion) | 64 por worker / 72 | 184 / 50 (corta en el LIMIT) |
+| Costo estimado | 21 369,27 | 353,32 |
+| Filas estimadas / reales (operacion) | 214 / 217 | 122 / 50 (se detiene en el LIMIT) |
 | Filas evaluadas | 918 479 | 50 |
-| Planning Time | 0,778 ms | 3,712 ms |
-| Execution Time | **178,689 ms** | **0,486 ms** (≈ 368× más rápido) |
+| Páginas leídas (buffers) | 15 496 | 156 |
+| Planning Time | 0,496 ms | 2,544 ms |
+| Execution Time (esta corrida) | **263,357 ms** | **0,390 ms** |
+| Execution Time (mediana de 5) | 263,357 ms | 0,390 ms |
 | Tamaño del índice | — | 16 kB (frente a 36 MB del índice completo) |
 
 </div>
 
-El tiempo de planificación sube un poco porque el planificador debe comprobar que el predicado de la consulta implica el del índice parcial. Son unos 3 ms frente a 178 ms ahorrados.
+El tiempo de planificación sube unos 2 ms porque el planificador debe comprobar que la condición de la consulta implica la del índice parcial. A cambio se ahorran más de 260 ms.
 
 ## O3 · Embudo de conversión de un mes (septiembre de 2026)
 
-Reporte por rango de fechas sobre la tabla más grande (2 millones de cotizaciones):
+Es un reporte por rango de fechas sobre la tabla más grande (2 millones de cotizaciones):
 
 ```sql
 SELECT q.modalidad, count(*) AS cotizaciones, count(o.id_operacion) AS operaciones
@@ -749,23 +819,42 @@ WHERE q.fecha_cotizacion >= TIMESTAMPTZ '2026-09-01 00:00-05'
 GROUP BY q.modalidad;
 ```
 
-**Plan antes:**
+**`EXPLAIN` (plan estimado):**
 
 ```
-Finalize GroupAggregate (cost=63587.92..63588.56)
-  ->  Parallel Hash Right Join  Hash Cond: (o.id_cotizacion = q.id_cotizacion)
-        ->  Parallel Seq Scan on operacion o   (actual rows=306159.67 loops=3)            ← 918 mil filas
-        ->  Parallel Hash
-              ->  Parallel Seq Scan on cotizacion q  (rows=74053) (actual rows=57209.67 loops=3)
-                    Filter: (fecha_cotizacion >= … AND fecha_cotizacion < …)
-                    Rows Removed by Filter: 609729                                         ← 1,8 millones descartadas
-Planning Time: 0.850 ms
-Execution Time: 602.950 ms
+Finalize GroupAggregate  (cost=63660.24..63660.88 rows=2 width=21)
+  ->  Gather Merge  (cost=63660.24..63660.83 rows=5)   Workers Planned: 2
+        ->  Partial HashAggregate  (cost=62660.19..62660.21 rows=2)
+              ->  Parallel Hash Right Join  (cost=42023.29..62118.88 rows=72175)
+                    Hash Cond: (o.id_cotizacion = q.id_cotizacion)
+                    ->  Parallel Seq Scan on operacion o  (cost=0.00..19091.00 rows=382700)
+                    ->  Parallel Hash  (cost=41121.11..41121.11 rows=72175)
+                          ->  Parallel Seq Scan on cotizacion q  (cost=0.00..41121.11 rows=72175)
+                                Filter: ((fecha_cotizacion >= …) AND (fecha_cotizacion < …))
 ```
 
-**Diagnóstico.** Hay **dos** Seq Scan. El de cotizacion descarta 91 % de las filas (lee 2 millones para usar 172 mil). Y el de operacion recorre la tabla completa para alimentar el Hash Join.
+**`EXPLAIN (ANALYZE, BUFFERS)` antes:**
 
-**Paso 1: índice sobre la fecha. B-tree frente a BRIN.** Las cotizaciones se insertan en orden cronológico, y `pg_stats` muestra una **correlación física de 1,0000** entre `fecha_cotizacion` y la posición de las filas. Eso hace ideal un índice **BRIN** (*Block Range Index*): guarda solo el mínimo y el máximo de cada bloque de 128 páginas en lugar de una entrada por fila.
+```
+Finalize GroupAggregate  (cost=63660.24..63660.88 rows=2) (actual time=428.360..434.710 rows=2.00 loops=1)
+  Buffers: shared hit=15302 read=28594
+  ->  Parallel Hash Right Join  (actual time=247.747..281.771 rows=57209.67 loops=3)
+        ->  Parallel Seq Scan on operacion o  (actual time=0.886..25.307 rows=306159.67 loops=3)   ← 918 mil filas
+        ->  Parallel Hash  (actual time=170.802..170.803 rows=57209.67 loops=3)
+              ->  Parallel Seq Scan on cotizacion q  (cost=0.00..41121.11 rows=72175) (actual time=131.134..155.381 rows=57209.67 loops=3)
+                    Rows Removed by Filter: 609729                                              ← 1,8 millones descartadas
+                    Buffers: shared hit=2944 read=25672
+Planning Time: 0.414 ms
+Execution Time: 434.801 ms
+```
+
+**Diagnóstico.**
+
+- **Estimado frente a real:** el planificador estimó 72 175 cotizaciones por worker (≈ 216 mil) y salieron 57 210 por worker (171 629). Es una estimación razonable.
+- **Operación más costosa:** el Seq Scan de cotizacion (≈ 155 ms y 28 616 páginas, la mayoría leídas de disco), que descarta 91 % de las filas.
+- **Segundo cuello de botella:** el Hash Join recorre las **918 mil operaciones** para encontrar las 79 mil del mes.
+
+**Paso 1: índice sobre la fecha, B-tree frente a BRIN.** Las cotizaciones se insertan en orden cronológico, y `pg_stats` muestra una **correlación física de 1,0000** entre `fecha_cotizacion` y la posición de las filas. Eso hace ideal un índice **BRIN** (*Block Range Index*), que guarda solo el mínimo y el máximo de cada bloque de 128 páginas en lugar de una entrada por fila.
 
 ```sql
 CREATE INDEX idx_cotizacion_fecha_btree ON cotizacion (fecha_cotizacion);           -- opción A
@@ -775,12 +864,15 @@ CREATE INDEX idx_cotizacion_fecha_brin  ON cotizacion USING brin (fecha_cotizaci
 | | B-tree | BRIN |
 |---|---|---|
 | Tamaño | 43 MB | **24 kB** (≈ 1 800 veces menos) |
-| Acceso a cotizacion | Parallel Index Scan | Bitmap Index Scan + Bitmap Heap Scan (lossy) |
-| Execution Time de la consulta | 453,152 ms | 427,180 ms |
+| Acceso a cotizacion | Parallel Index Scan (≈ 23 ms) | Bitmap Index Scan + Bitmap Heap Scan lossy (≈ 21 ms) |
+| Costo estimado de la consulta | 29 491,24 | 52 239,94 |
+| Execution Time (esta corrida / mediana de 5) | 277,6 / 447,1 ms | 286,4 / 286,4 ms |
 
-Con cualquiera de los dos índices, el acceso a `cotizacion` baja de unos 239 ms a unos 37 ms. Pero **la consulta solo mejora 1,4 veces**, porque el cuello de botella pasó a ser el Seq Scan completo de `operacion` (918 mil filas), que ningún índice sobre cotizacion puede evitar. **Crear un índice no basta**: hay que volver a leer el plan.
+Con cualquiera de los dos, el acceso a `cotizacion` baja de ≈ 155 ms a ≈ 22 ms. Pero **la consulta completa solo mejora alrededor de 1,7 veces**, porque el cuello de botella pasó al Hash Join, que sigue recorriendo las 918 mil operaciones. Los dos índices rinden igual, y por eso se elige el BRIN: es 1 800 veces más chico y casi no encarece las inserciones. El costo estimado del BRIN es mayor porque el planificador asume que su lectura es imprecisa (lossy); el tiempo real muestra que no lo es. **Crear un índice no basta**: hay que volver a leer el plan.
 
-**Paso 2: reescritura con una regla de negocio.** Una operación solo puede crearse durante la vigencia de la cotización (5 min) más la gracia del backend (10 min). Así, toda operación de una cotización de septiembre tiene `fecha_operacion` entre el 1 de septiembre y el 1 de octubre más 15 minutos. Ese rango se agrega en el `ON` del LEFT JOIN, para no convertirlo en INNER JOIN, y se crea otro BRIN, porque `fecha_operacion` también es cronológica:
+**Paso 2: reescritura con una regla de negocio.** Una operación solo puede crearse durante la vigencia de la cotización (5 min) más la gracia del backend (10 min). Por eso toda operación de una cotización de septiembre tiene `fecha_operacion` entre el 1 de septiembre y el 1 de octubre más 15 minutos.
+
+Ese rango se agrega en el `ON` del LEFT JOIN (para no convertirlo en INNER JOIN) y se crea otro BRIN, porque `fecha_operacion` también es cronológica:
 
 ```sql
 CREATE INDEX idx_operacion_fecha_brin ON operacion USING brin (fecha_operacion);
@@ -795,41 +887,48 @@ WHERE q.fecha_cotizacion >= TIMESTAMPTZ '2026-09-01 00:00-05'
 GROUP BY q.modalidad;
 ```
 
-**Plan después:**
+**`EXPLAIN (ANALYZE, BUFFERS)` después:**
 
 ```
-Finalize GroupAggregate
-  ->  Parallel Hash Right Join
-        ->  Parallel Bitmap Heap Scan on cotizacion q   (actual rows=57209.67 loops=3)
-              ->  Bitmap Index Scan on idx_cotizacion_fecha_brin   (Buffers: shared hit=5)
-        ->  Parallel Bitmap Heap Scan on operacion o    (actual rows=78975)            ← 79 mil en vez de 918 mil
-              ->  Bitmap Index Scan on idx_operacion_fecha_brin
-Planning Time: 2.641 ms
-Execution Time: 174.922 ms
+Finalize GroupAggregate  (cost=47695.06..47695.70 rows=2) (actual time=103.645..110.186 rows=2.00 loops=1)
+  Buffers: shared hit=4061
+  ->  Parallel Hash Left Join  (actual time=25.020..51.161 rows=57209.67 loops=3)
+        ->  Parallel Bitmap Heap Scan on cotizacion q  (actual time=1.146..12.717 rows=57209.67 loops=3)
+              ->  Bitmap Index Scan on idx_cotizacion_fecha_brin  (Buffers: shared hit=35)
+        ->  Parallel Hash
+              ->  Parallel Bitmap Heap Scan on operacion o  (actual time=0.752..12.037 rows=26325.00 loops=3)   ← 79 mil en vez de 918 mil
+                    ->  Bitmap Index Scan on idx_operacion_fecha_brin  (Buffers: shared hit=2)
+Planning Time: 3.864 ms
+Execution Time: 110.328 ms
 ```
 
 `05_indexes.sql` comprueba que la consulta reescrita devuelve **exactamente** el mismo resultado: el `EXCEPT` entre ambas versiones da 0 filas. También comprueba el supuesto en los datos: la demora máxima entre cotización y operación es de 3 min 59 s.
 
 <div class="metricas">
 
-| Métrica | Antes | Solo índice (BRIN) | Índices BRIN + reescritura |
+| Métrica | Antes | Solo índice (BRIN) | BRIN + reescritura |
 |---|---|---|---|
 | Acceso a cotizacion | Parallel Seq Scan | Bitmap Heap Scan (BRIN) | Bitmap Heap Scan (BRIN) |
 | Acceso a operacion | Parallel Seq Scan | Parallel Seq Scan | Bitmap Heap Scan (BRIN) |
-| Costo estimado | 63 588,56 | 52 218,23 | 47 855,46 |
+| Costo estimado | 63 660,88 | 52 239,94 | 47 695,70 |
 | Filas evaluadas (cotizacion + operacion) | 2 000 817 + 918 479 | ≈ 174 000 + 918 479 | ≈ 174 000 + 79 000 |
 | Filas reales (cotizacion) | 171 629 | 171 629 | 171 629 |
-| Execution Time | **602,950 ms** | 427,180 ms | **174,922 ms** (≈ 3,4× más rápido) |
+| Páginas leídas (buffers) | 43 896 | 17 845 | **4 061** |
+| Planning Time | 0,414 ms | 2,394 ms | 3,864 ms |
+| Execution Time (esta corrida) | 434,801 ms | 286,433 ms | **110,328 ms** |
+| Execution Time (mediana de 5) | 484,701 ms | 286,433 ms | **177,091 ms** |
 | Espacio de índices agregado | — | 24 kB | 48 kB |
 
 </div>
 
 ## Conclusiones de la optimización
 
+- **`EXPLAIN` primero, `EXPLAIN ANALYZE` después.** El plan estimado ya mostraba los Seq Scan y su peso en el costo antes de ejecutar nada. El real confirmó los tiempos y mostró dónde se iban las páginas leídas. Las estimaciones de filas fueron buenas (O2: 214 frente a 217) o con errores que no cambiaron el plan (O1: 11 frente a 26).
 - **Cada índice responde a un patrón de acceso distinto:** compuesto (igualdad + rango + orden), parcial (subconjunto pequeño de una tabla grande) y BRIN (datos correlacionados con el orden físico).
-- **Los índices tienen costo.** Cada INSERT en `operacion` mantiene ahora dos índices más. Por eso se descartaron el índice completo de 36 MB y el B-tree de 43 MB, y se eligieron alternativas que dan el mismo beneficio con una fracción del espacio y del costo de escritura.
-- **El plan de ejecución manda.** En O3, el índice solo mejoró 1,4 veces porque el cuello de botella estaba en otra tabla. La mejora real (3,4 veces) vino de leer el plan y usar una regla de negocio para acotar la segunda tabla.
-- Las FK sin índice (`operacion.id_cliente`) son la causa más común de Seq Scan en las consultas transaccionales. Es una revisión obligatoria en cualquier modelo.
+- **Los índices tienen costo.** Cada INSERT en `operacion` mantiene ahora índices adicionales. Por eso se descartaron el índice completo de 36 MB y el B-tree de 43 MB, y se eligieron alternativas que dan el mismo beneficio con una fracción del espacio y del costo de escritura.
+- **El plan de ejecución manda.** En O3 el índice solo mejoró alrededor de 1,7 veces porque el cuello de botella estaba en otra tabla. La mejora mayor vino de leer el plan y usar una regla de negocio para acotar la segunda tabla: las páginas leídas bajaron de 43 896 a 4 061.
+- **Hay que medir varias veces.** Los tiempos sin índice variaron hasta 7 veces entre corridas; los tiempos con índice, casi nada. Las páginas leídas son más estables que el tiempo para comparar planes.
+- **Las FK sin índice** (`operacion.id_cliente`) son la causa más común de Seq Scan en las consultas transaccionales. Es una revisión obligatoria en cualquier modelo.
 
 # 7. Conclusiones
 
@@ -837,7 +936,7 @@ Execution Time: 174.922 ms
 2. **Las desnormalizaciones son pocas y justificadas:** la tasa congelada en la cotización por valor contractual y el estado actual por rendimiento, verificado contra el historial.
 3. **Los datos sintéticos replican el negocio real** (8,8 millones de filas) y permiten responder preguntas con valor. El más relevante: los dos clientes de mayor volumen tienen un patrón de fraccionamiento, y los rechazos se explican por cumplimiento y no por el banco.
 4. **Las 8 features separan cada tipo de comportamiento inusual,** pero ninguna los detecta a todos. Eso justifica el modelo multivariable y la arquitectura especializada de la Parte 2.
-5. **La optimización se basa en evidencia:** de 163 a 0,6 ms, de 179 a 0,5 ms y de 603 a 175 ms, con índices elegidos según el patrón de acceso y su costo, y medidos con EXPLAIN ANALYZE.
+5. **La optimización se basa en evidencia:** en medianas de 5 corridas, de 171 a 0,4 ms (O1), de 263 a 0,4 ms (O2) y de 485 a 177 ms (O3), con índices elegidos según el patrón de acceso y su costo, y medidos con EXPLAIN y EXPLAIN ANALYZE.
 
 # 8. Anexo: reproducción del proyecto
 
