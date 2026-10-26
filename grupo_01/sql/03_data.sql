@@ -3,10 +3,10 @@
 -- Carga de datos: catálogos con INSERT INTO y datos sintéticos con \copy.
 --
 -- Requisitos:
---   1. Generar los CSV:  python generador/generar_datos.py
---   2. Ejecutar DESDE la carpeta grupo_01 (las rutas de \copy son relativas):
---        cd grupo_01
---        psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/03_data.sql
+--   Ejecutar DESDE la carpeta grupo_01 (las rutas de \copy son relativas):
+--     cd grupo_01
+--     python generador/generar_datos.py      # genera los CSV en datos/completo/ (~5 min)
+--     psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/03_data.sql   # ~11 min
 --
 -- Los CSV no traen los IDs: las tablas usan GENERATED ALWAYS AS IDENTITY y COPY los
 -- asigna en el orden de las filas. Por eso se vacían las tablas con RESTART IDENTITY

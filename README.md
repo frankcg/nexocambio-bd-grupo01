@@ -1,37 +1,43 @@
 # NexoCambio — Proyecto de Base de Datos (Grupo 1)
 
+Integrantes: Frank Laura, Josue Campos y Mauricio Vallejos.
+
 Caso de negocio: casa de cambio digital de divisas y criptoactivos (NexoCambio), el mismo del
 curso de Cloud Computing. Autorizado por el docente, con datos sintéticos.
 
-## Entregables (`grupo_01/`)
-| Parte | Archivo | Contenido |
-|---|---|---|
-| 1 | `informe.pdf` | Análisis de negocio, modelo ER, implementación, 10 consultas, 8 features, optimización |
-| 1 | `modelo_ER.pdf` | Diagrama ER completo, cardinalidades y diccionario de datos |
-| 1 | `sql/01_schema.sql` … `05_indexes.sql` | Esquema, tablas, carga, consultas e índices |
-| 1 | `datos/dataset.csv` | Muestra plana de ~10 mil operaciones |
-| 2 | `informe_final.pdf` | Caso de IA (detección de operaciones inusuales), caracterización, tecnología, comparación, Polyglot Persistence |
-| 2 | `arquitectura.pdf` | Diagrama de arquitectura, flujos, secuencia de scoring y latencia |
-| 2 | `modelo_nosql.pdf` | Modelo de datos en Redis, eventos de Kinesis y dimensionamiento |
+## Entregable 1 (`grupo_01/`, lo que se sube)
+| Archivo | Contenido |
+|---|---|
+| `informe.pdf` / `informe.docx` | Análisis de negocio, modelo ER, implementación, 10 consultas, 8 features, optimización (el .docx permite personalizar la portada) |
+| `modelo_ER.pdf` | Diagrama ER completo, cardinalidades y diccionario de datos |
+| `sql/01_schema.sql` … `05_indexes.sql` | Esquema, tablas, carga, consultas e índices |
+| `datos/dataset.csv` | Muestra plana de ~10 mil operaciones |
+| `generador/generar_datos.py` | Genera los datos completos que carga `03_data.sql` (solo biblioteca estándar de Python) |
+| `pruebas/pruebas_restricciones.sql` | 29 casos inválidos que las restricciones deben rechazar (con ROLLBACK) |
+| `resultados/` | Salidas completas de `04_queries.sql` y `05_indexes.sql` |
 
-## Estructura del repositorio
-- `grupo_01/`: entregable final (lo que se sube).
-- `docs/fuentes/`: fuentes Markdown de los PDF (`python generador/generar_pdfs.py` los regenera).
-- `docs/resultados/`: salidas completas de `04_queries.sql` y `05_indexes.sql`.
-- `generador/`: generador de datos sintéticos y de PDF (solo biblioteca estándar de Python).
-- `pruebas/`: comprueba que cada restricción rechaza los datos inválidos (29 casos, con ROLLBACK).
+## Entregable 2 (`entrega_2/`, borrador)
+Borrador de la Parte 2 (arquitectura para IA: detección de operaciones inusuales con Redis,
+Kinesis y Data Lake). Se retomará para el segundo entregable; sus fuentes están en
+`docs/fuentes/parte2/`.
+
+## Otras carpetas
+- `docs/fuentes/`: fuentes Markdown de los documentos.
+  - `python generador/generar_pdfs.py` regenera los PDF (Edge headless).
+  - `node generador/word/generar_word.js` regenera `informe.docx`.
+- `docs/01_analisis_negocio_y_modelo_ER.md`: primer borrador (lo vigente está en el informe).
 
 ## Ejecución
 PostgreSQL 18 local en el puerto 5433. La contraseña va en `%APPDATA%\postgresql\pgpass.conf`,
-nunca en el repositorio.
+nunca en el repositorio. Todo se ejecuta desde `grupo_01/` (las rutas de `\copy` son relativas):
 ```
+cd grupo_01
 psql -h localhost -p 5433 -U postgres -d postgres -c "CREATE DATABASE nexocambio ENCODING 'UTF8' TEMPLATE template0;"
-psql -h localhost -p 5433 -U postgres -d nexocambio -f grupo_01/sql/01_schema.sql
-psql -h localhost -p 5433 -U postgres -d nexocambio -f grupo_01/sql/02_tables.sql
+psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/01_schema.sql
+psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/02_tables.sql
 psql -h localhost -p 5433 -U postgres -d nexocambio -f pruebas/pruebas_restricciones.sql
 
-python generador/generar_datos.py          # ~5 min; CSV en grupo_01/datos/completo/ (no se versionan)
-cd grupo_01
+python generador/generar_datos.py                                            # ~5 min; CSV en datos/completo/ (no se versionan)
 psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/03_data.sql      # ~11 min
 psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/04_queries.sql   # ~1 min
 psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/05_indexes.sql   # ejecutar dos veces
@@ -44,7 +50,3 @@ La semilla es fija: los datos y los resultados de los informes son siempre los m
 `grupo_01/datos/completo/etiquetas_anomalias.csv` indica qué clientes tienen comportamiento
 inusual inyectado (fraccionamiento, picos, multicuenta, actividad nocturna). Solo se usa para
 validar las features; no forma parte del modelo.
-
-## Pendiente antes de entregar
-- Completar los integrantes en la portada de `docs/fuentes/informe.md` e `informe_final.md`
-  y regenerar los PDF con `python generador/generar_pdfs.py`.

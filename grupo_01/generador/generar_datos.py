@@ -1,9 +1,10 @@
 """
 NexoCambio · Generador de datos sintéticos.
 
-Genera los CSV que carga grupo_01/sql/03_data.sql y la muestra grupo_01/datos/dataset.csv.
+Genera los CSV que carga sql/03_data.sql y la muestra datos/dataset.csv.
 Solo usa la biblioteca estándar de Python y es reproducible (semilla fija).
 
+    cd grupo_01
     python generador/generar_datos.py              # volumen completo (~50 mil clientes)
     python generador/generar_datos.py --escala 0.02 # prueba rápida
 
@@ -28,9 +29,9 @@ from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-RAIZ = Path(__file__).resolve().parent.parent
-SALIDA = RAIZ / "grupo_01" / "datos" / "completo"
-MUESTRA = RAIZ / "grupo_01" / "datos" / "dataset.csv"
+RAIZ = Path(__file__).resolve().parent.parent  # carpeta grupo_01
+SALIDA = RAIZ / "datos" / "completo"
+MUESTRA = RAIZ / "datos" / "dataset.csv"
 
 LIMA = timezone(timedelta(hours=-5))  # Perú no usa horario de verano
 INICIO = datetime(2025, 1, 1, tzinfo=LIMA)

@@ -3,6 +3,7 @@
 -- Inserta un caso válido y comprueba que cada regla de negocio rechaza los datos
 -- inválidos. Todo corre en una transacción con ROLLBACK: no deja datos y puede
 -- ejecutarse con la base vacía o con los datos ya cargados.
+--   cd grupo_01
 --   psql -h localhost -p 5433 -U postgres -d nexocambio -f pruebas/pruebas_restricciones.sql
 -- =============================================================================
 \set ON_ERROR_STOP on

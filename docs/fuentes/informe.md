@@ -4,7 +4,7 @@
 <div class="subtitulo">Parte 1 · Análisis de negocio, modelo relacional y explotación de datos en PostgreSQL</div>
 <div class="datos">
 <p><strong>Grupo 1</strong></p>
-<p>Integrantes: [Nombre y apellido – código] · [Nombre y apellido – código] · [Nombre y apellido – código]</p>
+<p>Integrantes: Frank Laura · Josue Campos · Mauricio Vallejos</p>
 <p>Docente: Luis Chicoma</p>
 <p>Lima, octubre de 2026</p>
 </div>
@@ -33,6 +33,9 @@
 | `sql/04_queries.sql` | 10 consultas de negocio y 8 features |
 | `sql/05_indexes.sql` | EXPLAIN ANALYZE antes y después de cada optimización |
 | `datos/dataset.csv` | Muestra plana de 10 205 operaciones (~1 % del total) |
+| `generador/generar_datos.py` | Generador de los datos sintéticos completos (lo usa `03_data.sql`) |
+| `pruebas/pruebas_restricciones.sql` | 29 casos inválidos que las restricciones deben rechazar |
+| `resultados/` | Salidas completas de `04_queries.sql` y `05_indexes.sql` |
 
 # 1. Análisis del negocio
 
@@ -838,19 +841,19 @@ Execution Time: 174.922 ms
 
 # 8. Anexo: reproducción del proyecto
 
-Requisitos: PostgreSQL 18 (puerto 5433 en nuestro entorno), Python 3.12 o superior (solo la biblioteca estándar). La contraseña va en `%APPDATA%\postgresql\pgpass.conf`, nunca en el repositorio.
+Requisitos: PostgreSQL 18 (puerto 5433 en nuestro entorno) y Python 3.12 o superior (solo la biblioteca estándar). La contraseña va en `%APPDATA%\postgresql\pgpass.conf`, nunca en los archivos del proyecto. Todo se ejecuta **desde la carpeta `grupo_01/`**, porque las rutas de `\copy` son relativas:
 
 ```
+cd grupo_01
 psql -h localhost -p 5433 -U postgres -d postgres -c "CREATE DATABASE nexocambio ENCODING 'UTF8' TEMPLATE template0;"
-psql -h localhost -p 5433 -U postgres -d nexocambio -f grupo_01/sql/01_schema.sql
-psql -h localhost -p 5433 -U postgres -d nexocambio -f grupo_01/sql/02_tables.sql
+psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/01_schema.sql
+psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/02_tables.sql
 psql -h localhost -p 5433 -U postgres -d nexocambio -f pruebas/pruebas_restricciones.sql   # 29 casos
 
-python generador/generar_datos.py           # ~5 min, ~750 MB de CSV en grupo_01/datos/completo/
-cd grupo_01
+python generador/generar_datos.py                                            # ~5 min, ~750 MB de CSV en datos/completo/
 psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/03_data.sql      # ~11 min
 psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/04_queries.sql   # ~1 min
 psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/05_indexes.sql   # ejecutar dos veces
 ```
 
-La semilla del generador es fija, así que los datos y los resultados de este informe son siempre los mismos. Las salidas completas de `04_queries.sql` y `05_indexes.sql` están en `docs/resultados/`.
+La semilla del generador es fija, así que los datos y los resultados de este informe son siempre los mismos (`python generador/generar_datos.py --escala 0.02` genera una versión reducida para pruebas rápidas). Las salidas completas de `04_queries.sql` y `05_indexes.sql` están en `resultados/`.

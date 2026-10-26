@@ -1,11 +1,14 @@
 """
-NexoCambio · Genera los PDF del entregable a partir de docs/fuentes/*.md.
+NexoCambio · Genera los PDF de los entregables a partir de docs/fuentes/.
+
+    docs/fuentes/*.md         → grupo_01/   (Parte 1)
+    docs/fuentes/parte2/*.md  → entrega_2/  (Parte 2, segundo entregable)
 
 Cada Markdown se envuelve en un HTML que lo renderiza en el navegador (marked para el
 texto, Mermaid para los diagramas) y se imprime a PDF con Edge o Chrome en modo headless.
 
     python generador/generar_pdfs.py             # todos los documentos
-    python generador/generar_pdfs.py informe     # solo docs/fuentes/informe.md
+    python generador/generar_pdfs.py informe     # solo el documento indicado
 
 Opciones por documento (primera línea del .md):
     <!-- pagina: A3 landscape -->
@@ -18,7 +21,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 FUENTES = RAIZ / "docs" / "fuentes"
-SALIDA = RAIZ / "grupo_01"
+DESTINOS = [(FUENTES, RAIZ / "grupo_01"), (FUENTES / "parte2", RAIZ / "entrega_2")]
 TEMPORAL = RAIZ / "docs" / "fuentes" / "_html"  # HTML intermedio (no se versiona)
 NAVEGADORES = [Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
                Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
@@ -57,7 +60,7 @@ def navegador() -> Path:
     sys.exit("No se encontró Edge ni Chrome.")
 
 
-def construir(md_path: Path, css: str, exe: Path):
+def construir(md_path: Path, css: str, exe: Path, salida: Path):
     texto = md_path.read_text(encoding="utf-8")
     m = re.match(r"<!--\s*pagina:\s*(.+?)\s*-->", texto)
     pagina = m.group(1) if m else "A4"
@@ -68,7 +71,8 @@ def construir(md_path: Path, css: str, exe: Path):
     TEMPORAL.mkdir(exist_ok=True)
     html_path = TEMPORAL / f"{md_path.stem}.html"
     html_path.write_text(pagina_html, encoding="utf-8")
-    pdf = SALIDA / f"{md_path.stem}.pdf"
+    salida.mkdir(exist_ok=True)
+    pdf = salida / f"{md_path.stem}.pdf"
     subprocess.run([str(exe), "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
                     "--virtual-time-budget=20000", f"--print-to-pdf={pdf}", html_path.as_uri()],
                    check=True, capture_output=True)
@@ -79,9 +83,10 @@ def main():
     css = (FUENTES / "estilos.css").read_text(encoding="utf-8")
     exe = navegador()
     pedidos = sys.argv[1:]
-    for md in sorted(FUENTES.glob("*.md")):
-        if not pedidos or md.stem in pedidos:
-            construir(md, css, exe)
+    for carpeta, salida in DESTINOS:
+        for md in sorted(carpeta.glob("*.md")):
+            if not pedidos or md.stem in pedidos:
+                construir(md, css, exe, salida)
 
 
 if __name__ == "__main__":
