@@ -25,13 +25,13 @@
 
 | Archivo | Contenido |
 |---|---|
-| `informe.pdf` | Este documento |
+| `informe.pdf` / `informe.docx` | Este documento (en PDF y en Word) |
 | `modelo_ER.pdf` | Diagrama ER completo, cardinalidades y diccionario de datos |
 | `sql/01_schema.sql` | Creación del esquema `nexocambio` |
 | `sql/02_tables.sql` | 15 tablas con PK, FK, UNIQUE, CHECK y NOT NULL |
 | `sql/03_data.sql` | Carga: catálogos con INSERT INTO y datos sintéticos con `\copy` |
 | `sql/04_queries.sql` | 10 consultas de negocio y 8 features |
-| `sql/05_indexes.sql` | EXPLAIN ANALYZE antes y después de cada optimización |
+| `sql/05_indexes.sql` | EXPLAIN y EXPLAIN ANALYZE antes y después de cada optimización |
 | `datos/dataset.csv` | Muestra plana de 10 205 operaciones (~1 % del total) |
 | `generador/generar_datos.py` | Generador de los datos sintéticos completos (lo usa `03_data.sql`) |
 | `pruebas/pruebas_restricciones.sql` | 29 casos inválidos que las restricciones deben rechazar |

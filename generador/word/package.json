@@ -1,0 +1,1 @@
+{"name":"nexocambio-word","private":true,"description":"Genera informe.docx desde docs/fuentes/informe.md","dependencies":{"docx":"^9.5.1","marked":"^12.0.2"}}

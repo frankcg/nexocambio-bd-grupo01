@@ -13,3 +13,8 @@ pgpass.conf
 
 # HTML intermedio de los PDF
 docs/fuentes/_html/
+
+# Generador del Word (dependencias e imágenes intermedias)
+generador/word/node_modules/
+generador/word/_img/
+generador/word/package-lock.json

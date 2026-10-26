@@ -73,9 +73,17 @@ def construir(md_path: Path, css: str, exe: Path, salida: Path):
     html_path.write_text(pagina_html, encoding="utf-8")
     salida.mkdir(exist_ok=True)
     pdf = salida / f"{md_path.stem}.pdf"
+    # Edge no avisa si no puede sobrescribir el PDF (por ejemplo, si está abierto en un visor):
+    # se borra antes para detectarlo.
+    try:
+        pdf.unlink(missing_ok=True)
+    except PermissionError:
+        sys.exit(f"No se puede reemplazar {pdf.relative_to(RAIZ)}: ciérrelo en el visor de PDF y reintente.")
     subprocess.run([str(exe), "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
                     "--virtual-time-budget=20000", f"--print-to-pdf={pdf}", html_path.as_uri()],
                    check=True, capture_output=True)
+    if not pdf.exists():
+        sys.exit(f"Edge no generó {pdf.relative_to(RAIZ)}.")
     print(f"{pdf.relative_to(RAIZ)}  ({pdf.stat().st_size // 1024} KB)")
 
 
