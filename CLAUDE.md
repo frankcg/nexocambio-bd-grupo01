@@ -16,6 +16,16 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   activos). Tecnología: Redis como feature store en línea, Kinesis (CDC desde PostgreSQL) y
   Data Lake S3. Falta revisarlo contra el enunciado y regenerar sus PDF.
 
+## Pendientes (al 29/10/2026)
+- **¿Hay que subirlo a GitHub?** Sin resolver: el enunciado no está en el repositorio y nada
+  aquí lo menciona. Revisar el enunciado o la rúbrica en la plataforma del curso (o pegarlo aquí).
+  El repo **no tiene remoto** configurado. Si se sube: el repositorio público o privado
+  (dar acceso al docente), `datos/completo/` queda fuera (`*.csv` ya está en `.gitignore`;
+  GitHub rechaza archivos de más de 100 MB) y se crea con `gh`.
+- Cambios sin commitear en `grupo_01/informe.docx` e `informe.pdf` (regenerados): revisar y
+  commitear.
+- `grupo_01.rar` en la raíz (sin seguimiento): paquete para la entrega; no commitearlo.
+
 ## Estructura
 - `grupo_01/`: lo que se entrega (se sube **sin** `datos/completo/`, que pesa ~750 MB).
   - `informe.pdf`, `informe.docx`, `modelo_ER.pdf`
