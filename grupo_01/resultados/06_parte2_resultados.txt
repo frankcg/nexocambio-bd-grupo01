@@ -1,0 +1,350 @@
+﻿
+=========== 1 · Volumen: filas y tamaño de la base ===========
+        tabla        |  filas  
+---------------------+---------
+ historial_estado    | 3499832
+ cotizacion          | 2000817
+ tasa_referencial    | 1138752
+ comprobante         |  959261
+ operacion           |  918479
+ cuenta_cliente      |  224441
+ cliente             |   50000
+ persona_natural     |   42493
+ representante_legal |    9022
+ empresa             |    7507
+ usuario_backoffice  |      12
+ moneda              |       7
+ banco               |       6
+ moneda_red          |       6
+ red_blockchain      |       4
+(15 filas)
+
+ filas_totales | tamano_base 
+---------------+-------------
+       8850639 | 1604 MB
+(1 fila)
+
+
+=========== 2 · Frecuencia: eventos de negocio en septiembre de 2026 ===========
+     tipo      | eventos | por_dia 
+---------------+---------+---------
+ operacion     |   78972 |    2632
+ comprobante   |   82473 |    2749
+ cotizacion    |  171629 |    5721
+ cambio_estado |  222027 |    7401
+               |  555101 |   18503
+(5 filas)
+
+ pico_por_hora 
+---------------
+          2532
+(1 fila)
+
+ pico_por_minuto 
+-----------------
+              73
+(1 fila)
+
+
+=========== 3 · Crecimiento: operaciones por día ===========
+   mes   | operaciones | por_dia 
+---------+-------------+---------
+ 2025-01 |        8780 |     283
+ 2026-09 |       78972 |    2632
+(2 filas)
+
+
+=========== 4 · Estado "caliente" para el scoring (corte 22/10/2026) ===========
+ clientes_activos_90d 
+----------------------
+                23697
+(1 fila)
+
+ operaciones_120d_por_cliente_activo 
+-------------------------------------
+                                12.5
+(1 fila)
+
+
+=========== 5 · Costo de las features en PostgreSQL (v_features_cliente) ===========
+ codigo_cliente | operaciones 
+----------------+-------------
+ CLI-ZYCHEZ     |        2809
+ CLI-06EZN7     |          26
+(2 filas)
+
+
+-- Cliente típico (CLI-06EZN7)
+                                                                                                              QUERY PLAN                                                                                                               
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Subquery Scan on v_features_cliente (actual rows=1.00 loops=1)
+   Buffers: shared hit=260 read=85
+   ->  GroupAggregate (actual rows=1.00 loops=1)
+         Group Key: c.tipo_cliente, c.fecha_registro, persona_natural.es_pep
+         Buffers: shared hit=260 read=85
+         CTE corte
+           ->  Result (actual rows=1.00 loops=1)
+         InitPlan 2
+           ->  CTE Scan on corte (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 3
+           ->  CTE Scan on corte corte_1 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 4
+           ->  CTE Scan on corte corte_2 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 5
+           ->  CTE Scan on corte corte_3 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 6
+           ->  CTE Scan on corte corte_4 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 7
+           ->  CTE Scan on corte corte_5 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 8
+           ->  CTE Scan on corte corte_6 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 9
+           ->  CTE Scan on corte corte_7 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         ->  Incremental Sort (actual rows=26.00 loops=1)
+               Sort Key: c.tipo_cliente, c.fecha_registro, persona_natural.es_pep
+               Presorted Key: c.tipo_cliente
+               Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 28kB  Peak Memory: 28kB
+               Buffers: shared hit=260 read=85
+               ->  Nested Loop (actual rows=26.00 loops=1)
+                     Buffers: shared hit=255 read=85
+                     ->  Nested Loop (actual rows=1.00 loops=1)
+                           Buffers: shared hit=8 read=6
+                           ->  Nested Loop (actual rows=1.00 loops=1)
+                                 Buffers: shared hit=8 read=1
+                                 ->  Index Scan using uq_cliente_tipo on cliente c (actual rows=1.00 loops=1)
+                                       Index Cond: (id_cliente = 41768)
+                                       Index Searches: 1
+                                       Buffers: shared hit=5 read=1
+                                 ->  Index Only Scan using uq_cliente_tipo on cliente c_1 (actual rows=1.00 loops=1)
+                                       Index Cond: (id_cliente = 41768)
+                                       Heap Fetches: 0
+                                       Index Searches: 1
+                                       Buffers: shared hit=3
+                           ->  Append (actual rows=1.00 loops=1)
+                                 Buffers: shared read=5
+                                 ->  Index Scan using persona_natural_pkey on persona_natural (actual rows=1.00 loops=1)
+                                       Index Cond: (id_cliente = 41768)
+                                       Index Searches: 1
+                                       Buffers: shared read=3
+                                 ->  Subquery Scan on "*SELECT* 2" (actual rows=0.00 loops=1)
+                                       Buffers: shared read=2
+                                       ->  Index Scan using empresa_pkey on empresa (actual rows=0.00 loops=1)
+                                             Index Cond: (id_cliente = 41768)
+                                             Index Searches: 1
+                                             Buffers: shared read=2
+                     ->  Materialize (actual rows=26.00 loops=1)
+                           Storage: Memory  Maximum Storage: 19kB
+                           Buffers: shared hit=247 read=79
+                           ->  Nested Loop (actual rows=26.00 loops=1)
+                                 Buffers: shared hit=247 read=79
+                                 ->  Nested Loop Left Join (actual rows=26.00 loops=1)
+                                       Buffers: shared hit=159 read=63
+                                       ->  Nested Loop (actual rows=26.00 loops=1)
+                                             Buffers: shared hit=90 read=43
+                                             ->  Index Scan using idx_operacion_cliente_fecha on operacion o (actual rows=26.00 loops=1)
+                                                   Index Cond: (id_cliente = 41768)
+                                                   Index Searches: 1
+                                                   Buffers: shared hit=29
+                                             ->  Index Scan using cotizacion_pkey on cotizacion q (actual rows=1.00 loops=26)
+                                                   Index Cond: (id_cotizacion = o.id_cotizacion)
+                                                   Index Searches: 26
+                                                   Buffers: shared hit=61 read=43
+                                       ->  Index Scan using uq_tasa_moneda_fecha on tasa_referencial t (actual rows=0.42 loops=26)
+                                             Index Cond: (((codigo_moneda)::text = (q.moneda_origen)::text) AND (fecha_hora = date_bin('00:05:00'::interval, q.fecha_cotizacion, '2025-01-01 00:00:00-05'::timestamp with time zone)))
+                                             Index Searches: 26
+                                             Buffers: shared hit=69 read=20
+                                 ->  Index Scan using uq_cuenta_cliente on cuenta_cliente cc (actual rows=1.00 loops=26)
+                                       Index Cond: (id_cuenta = o.id_cuenta_destino)
+                                       Index Searches: 26
+                                       Buffers: shared hit=88 read=16
+ Planning:
+   Buffers: shared hit=345 read=43
+ Planning Time: 40.967 ms
+ Execution Time: 5.804 ms
+(92 filas)
+
+
+-- Cliente con fraccionamiento (CLI-ZYCHEZ)
+                                                                                                                 QUERY PLAN                                                                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Subquery Scan on v_features_cliente (actual rows=1.00 loops=1)
+   Buffers: shared hit=28686 read=6258
+   ->  Finalize GroupAggregate (actual rows=1.00 loops=1)
+         Group Key: c.tipo_cliente, c.fecha_registro, persona_natural.es_pep
+         Buffers: shared hit=28686 read=6258
+         CTE corte
+           ->  Result (actual rows=1.00 loops=1)
+         InitPlan 2
+           ->  CTE Scan on corte (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 3
+           ->  CTE Scan on corte corte_1 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 4
+           ->  CTE Scan on corte corte_2 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 5
+           ->  CTE Scan on corte corte_3 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 6
+           ->  CTE Scan on corte corte_4 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 7
+           ->  CTE Scan on corte corte_5 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 8
+           ->  CTE Scan on corte corte_6 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         InitPlan 9
+           ->  CTE Scan on corte corte_7 (actual rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+         ->  Gather Merge (actual rows=2.00 loops=1)
+               Workers Planned: 1
+               Workers Launched: 1
+               Buffers: shared hit=28686 read=6258
+               ->  Partial GroupAggregate (actual rows=1.00 loops=2)
+                     Group Key: c.tipo_cliente, c.fecha_registro, persona_natural.es_pep
+                     Buffers: shared hit=28686 read=6258
+                     ->  Sort (actual rows=1404.50 loops=2)
+                           Sort Key: c.tipo_cliente, c.fecha_registro, persona_natural.es_pep
+                           Sort Method: quicksort  Memory: 235kB
+                           Buffers: shared hit=28686 read=6258
+                           Worker 0:  Sort Method: quicksort  Memory: 252kB
+                           ->  Nested Loop (actual rows=1404.50 loops=2)
+                                 Buffers: shared hit=28662 read=6258
+                                 ->  Nested Loop (actual rows=1404.50 loops=2)
+                                       Buffers: shared hit=28638 read=6254
+                                       ->  Nested Loop Left Join (actual rows=1404.50 loops=2)
+                                             Buffers: shared hit=17664 read=5991
+                                             ->  Nested Loop (actual rows=1404.50 loops=2)
+                                                   Buffers: shared hit=9294 read=4365
+                                                   ->  Parallel Bitmap Heap Scan on operacion o (actual rows=1404.50 loops=2)
+                                                         Recheck Cond: (id_cliente = 28639)
+                                                         Heap Blocks: exact=1139
+                                                         Buffers: shared hit=2406 read=16
+                                                         Worker 0:  Heap Blocks: exact=1249
+                                                         ->  Bitmap Index Scan on idx_operacion_cliente_fecha (actual rows=2809.00 loops=1)
+                                                               Index Cond: (id_cliente = 28639)
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=14
+                                                   ->  Index Scan using cotizacion_pkey on cotizacion q (actual rows=1.00 loops=2809)
+                                                         Index Cond: (id_cotizacion = o.id_cotizacion)
+                                                         Index Searches: 2809
+                                                         Buffers: shared hit=6888 read=4349
+                                             ->  Index Scan using uq_tasa_moneda_fecha on tasa_referencial t (actual rows=0.56 loops=2809)
+                                                   Index Cond: (((codigo_moneda)::text = (q.moneda_origen)::text) AND (fecha_hora = date_bin('00:05:00'::interval, q.fecha_cotizacion, '2025-01-01 00:00:00-05'::timestamp with time zone)))
+                                                   Index Searches: 2809
+                                                   Buffers: shared hit=8370 read=1626
+                                       ->  Index Scan using cuenta_cliente_pkey on cuenta_cliente cc (actual rows=1.00 loops=2809)
+                                             Index Cond: (id_cuenta = o.id_cuenta_destino)
+                                             Index Searches: 2809
+                                             Buffers: shared hit=10974 read=263
+                                 ->  Materialize (actual rows=1.00 loops=2809)
+                                       Storage: Memory  Maximum Storage: 17kB
+                                       Buffers: shared hit=24 read=4
+                                       ->  Nested Loop (actual rows=1.00 loops=2)
+                                             Buffers: shared hit=24 read=4
+                                             ->  Nested Loop (actual rows=1.00 loops=2)
+                                                   Buffers: shared hit=15 read=1
+                                                   ->  Index Scan using uq_cliente_tipo on cliente c (actual rows=1.00 loops=2)
+                                                         Index Cond: (id_cliente = 28639)
+                                                         Index Searches: 2
+                                                         Buffers: shared hit=9 read=1
+                                                   ->  Index Only Scan using uq_cliente_tipo on cliente c_1 (actual rows=1.00 loops=2)
+                                                         Index Cond: (id_cliente = 28639)
+                                                         Heap Fetches: 0
+                                                         Index Searches: 2
+                                                         Buffers: shared hit=6
+                                             ->  Append (actual rows=1.00 loops=2)
+                                                   Buffers: shared hit=9 read=3
+                                                   ->  Index Scan using persona_natural_pkey on persona_natural (actual rows=1.00 loops=2)
+                                                         Index Cond: (id_cliente = 28639)
+                                                         Index Searches: 2
+                                                         Buffers: shared hit=5 read=2
+                                                   ->  Subquery Scan on "*SELECT* 2" (actual rows=0.00 loops=2)
+                                                         Buffers: shared hit=4 read=1
+                                                         ->  Index Scan using empresa_pkey on empresa (actual rows=0.00 loops=2)
+                                                               Index Cond: (id_cliente = 28639)
+                                                               Index Searches: 2
+                                                               Buffers: shared hit=4 read=1
+ Planning:
+   Buffers: shared hit=36
+ Planning Time: 7.106 ms
+ Execution Time: 254.000 ms
+(104 filas)
+
+
+-- Todos los clientes (batch)
+                                                    QUERY PLAN                                                     
+-------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual rows=1.00 loops=1)
+   Buffers: shared hit=10843 read=41911, temp read=19832 written=19917
+   ->  GroupAggregate (actual rows=35438.00 loops=1)
+         Group Key: o.id_cliente, c.tipo_cliente, c.fecha_registro, persona_natural.es_pep
+         Buffers: shared hit=10843 read=41911, temp read=19832 written=19917
+         CTE corte
+           ->  Result (never executed)
+         ->  Gather Merge (actual rows=918479.00 loops=1)
+               Workers Planned: 2
+               Workers Launched: 2
+               Buffers: shared hit=10843 read=41911, temp read=19832 written=19917
+               ->  Sort (actual rows=306159.67 loops=3)
+                     Sort Key: o.id_cliente, c.tipo_cliente, c.fecha_registro, persona_natural.es_pep
+                     Sort Method: external merge  Disk: 11520kB
+                     Buffers: shared hit=10843 read=41911, temp read=19832 written=19917
+                     Worker 0:  Sort Method: external merge  Disk: 11144kB
+                     Worker 1:  Sort Method: external merge  Disk: 15184kB
+                     ->  Parallel Hash Join (actual rows=306159.67 loops=3)
+                           Hash Cond: (o.id_cuenta_destino = cc.id_cuenta)
+                           Buffers: shared hit=10779 read=41911, temp read=15101 written=15172
+                           ->  Hash Join (actual rows=306159.67 loops=3)
+                                 Hash Cond: (o.id_cliente = c.id_cliente)
+                                 Buffers: shared hit=10574 read=38628, temp read=15101 written=15172
+                                 ->  Parallel Hash Join (actual rows=306159.67 loops=3)
+                                       Hash Cond: (q.id_cotizacion = o.id_cotizacion)
+                                       Buffers: shared hit=7040 read=36840, temp read=15101 written=15172
+                                       ->  Parallel Seq Scan on cotizacion q (actual rows=666939.00 loops=3)
+                                             Buffers: shared hit=2120 read=26496
+                                       ->  Parallel Hash (actual rows=306159.67 loops=3)
+                                             Buckets: 131072  Batches: 8  Memory Usage: 7360kB
+                                             Buffers: shared hit=4920 read=10344, temp written=4360
+                                             ->  Parallel Seq Scan on operacion o (actual rows=306159.67 loops=3)
+                                                   Buffers: shared hit=4920 read=10344
+                                 ->  Hash (actual rows=50000.00 loops=3)
+                                       Buckets: 65536  Batches: 1  Memory Usage: 4028kB
+                                       Buffers: shared hit=3534 read=1788
+                                       ->  Hash Join (actual rows=50000.00 loops=3)
+                                             Hash Cond: (persona_natural.id_cliente = c.id_cliente)
+                                             Buffers: shared hit=3534 read=1788
+                                             ->  Append (actual rows=50000.00 loops=3)
+                                                   Buffers: shared hit=1119 read=558
+                                                   ->  Seq Scan on persona_natural (actual rows=42493.00 loops=3)
+                                                         Buffers: shared hit=961 read=479
+                                                   ->  Subquery Scan on "*SELECT* 2" (actual rows=7507.00 loops=3)
+                                                         Buffers: shared hit=158 read=79
+                                                         ->  Seq Scan on empresa (actual rows=7507.00 loops=3)
+                                                               Buffers: shared hit=158 read=79
+                                             ->  Hash (actual rows=50000.00 loops=3)
+                                                   Buckets: 65536  Batches: 1  Memory Usage: 3247kB
+                                                   Buffers: shared hit=2415 read=1230
+                                                   ->  Seq Scan on cliente c (actual rows=50000.00 loops=3)
+                                                         Buffers: shared hit=2415 read=1230
+                           ->  Parallel Hash (actual rows=74813.67 loops=3)
+                                 Buckets: 262144  Batches: 1  Memory Usage: 10880kB
+                                 Buffers: shared hit=205 read=3283
+                                 ->  Parallel Seq Scan on cuenta_cliente cc (actual rows=74813.67 loops=3)
+                                       Buffers: shared hit=205 read=3283
+ Planning:
+   Buffers: shared hit=38
+ Planning Time: 4.078 ms
+ Execution Time: 5505.858 ms
+(61 filas)
+
