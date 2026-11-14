@@ -27,7 +27,7 @@
 |---|---|
 | `informe_final.pdf` | Este documento |
 | `arquitectura.pdf` | Diagrama de arquitectura, flujos, secuencia de scoring y presupuesto de latencia |
-| `modelo_nosql.pdf` | Diseño de claves en Redis, ejemplos, equivalencia con las features SQL, eventos de Kinesis y dimensionamiento |
+| `modelo_nosql.pdf` | Diseño de claves en Redis, ejemplos, equivalencia con las features SQL, topics y eventos de Kafka y dimensionamiento |
 
 Este documento amplía la Parte 1 (`informe.pdf`), que contiene el modelo relacional en PostgreSQL, las consultas de negocio y las features que aquí se ponen en producción.
 
@@ -68,7 +68,7 @@ Las cifras salen de los datos de la Parte 1 (septiembre de 2026, el último mes 
 | **Necesidad de tiempo real** | El puntaje debe existir **antes** de que el analista abra la operación. La mediana de validación es de 15 a 33 minutos (C4), pero la cola se refresca continuamente y el riesgo debe estar listo de inmediato. | Scoring síncrono al cargar el comprobante, y ventanas actualizadas en segundos. |
 | **Latencia esperada** | Lectura de features ≤ 5 ms (p99); scoring completo ≤ 60 ms adicionales a la API. | Se necesita una lectura por clave con costo **independiente del historial**. |
 | **Patrón de lectura y escritura** | Escritura: un incremento por evento (muchas escrituras pequeñas). Lectura: el estado completo de **un** cliente por clave, sin joins. | Patrón clave–valor de acceso puntual, no relacional. |
-| **Escalabilidad** | Horizontal por cliente: los clientes son independientes entre sí, salvo la cuenta compartida. | Particionar por `id_cliente`: shards en Redis y *partition key* en Kinesis. |
+| **Escalabilidad** | Horizontal por cliente: los clientes son independientes entre sí, salvo la cuenta compartida. | Particionar por `id_cliente`: shards en Redis y clave del mensaje (partición) en Kafka. |
 | **Consultas predominantes** | "¿Cuántas operaciones hizo X en 24 h / 30 días?", "¿cuántas cerca del umbral?", "¿cuántas cuentas destino distintas?", "¿cuántos clientes envían a esta cuenta?", "dame las 50 operaciones más riesgosas". | Ventanas deslizantes, conteos y rankings: operaciones nativas de Redis (`ZCOUNT`, `HMGET`, `SCARD`, `ZREVRANGE`). |
 
 ## 2.1 ¿Por qué no calcular las features en PostgreSQL en cada evento?
@@ -99,7 +99,7 @@ Lo que falta es un almacenamiento donde el estado de cada cliente se **mantenga 
 
 ## 3.1 Tecnología elegida: Redis (Amazon ElastiCache) como feature store en línea
 
-Se complementa con **Amazon Kinesis Data Streams** como bus de eventos (alimentado por CDC desde PostgreSQL) y **Amazon S3 + Parquet** como Data Lake para entrenar.
+Se complementa con **Apache Kafka en Confluent Cloud** como bus de eventos (alimentado por CDC desde PostgreSQL con el conector Debezium) y **Amazon S3 + Parquet** como Data Lake para entrenar.
 
 | Pregunta | Respuesta |
 |---|---|
@@ -107,7 +107,7 @@ Se complementa con **Amazon Kinesis Data Streams** como bus de eventos (alimenta
 | **Por qué fue seleccionada** | Sus estructuras nativas calzan exactamente con las consultas del caso: *sorted sets* para las ventanas por tiempo y el ranking de riesgo, *hashes* para contadores diarios y perfil, *sets* para relaciones cuenta–clientes y TTL para la caducidad. Además es un servicio administrado en AWS, donde ya está el resto de NexoCambio. |
 | **Ventajas para el caso** | Latencia submilisegundo estable; `HINCRBY`/`ZADD` atómicos y scripts Lua para actualizar varias claves juntas; *pipelining* (todas las features en un viaje de red); escalamiento horizontal por shards con *hash tags* por cliente; el estado de hoy (≈ 150 MB) y el de 10 veces más (≈ 1,5 GB) caben en un nodo pequeño. |
 | **Limitaciones** | Los datos viven en memoria, así que el costo por GB es alto y no sirve para el histórico. No hay joins ni consultas ad hoc: cada pregunta nueva exige diseñar una estructura nueva. La durabilidad es más débil que la de PostgreSQL (snapshots, no transacciones con WAL síncrono). La consistencia con PostgreSQL es eventual, unos segundos vía CDC. |
-| **Cómo se complementa con PostgreSQL** | PostgreSQL sigue siendo el **sistema de registro**: todas las escrituras de negocio van ahí. Redis solo guarda **datos derivados y reconstruibles**: si se pierde, se repuebla desde PostgreSQL (job nocturno) y Kinesis (7 días de retención). El scoring nunca modifica el estado de una operación; la decisión la registra el analista en `historial_estado`. |
+| **Cómo se complementa con PostgreSQL** | PostgreSQL sigue siendo el **sistema de registro**: todas las escrituras de negocio van ahí. Redis solo guarda **datos derivados y reconstruibles**: si se pierde, se repuebla desde PostgreSQL (job nocturno) y Kafka (7 días de retención). El scoring nunca modifica el estado de una operación; la decisión la registra el analista en `historial_estado`. |
 
 ## 3.2 Alternativas evaluadas
 
@@ -117,7 +117,7 @@ Se complementa con **Amazon Kinesis Data Streams** como bus de eventos (alimenta
 | **Amazon DynamoDB** (ya se usa en el proyecto de Cloud) | Clave–valor serverless, latencia de un dígito en ms, alta durabilidad | Es una alternativa válida y más barata con poco tráfico. Pero no tiene *sorted sets* ni conjuntos con cardinalidad, así que las ventanas deslizantes y el ranking de riesgo exigen más lógica en la aplicación y más lecturas. Se deja como plan B si se prioriza lo serverless. |
 | **TimescaleDB / InfluxDB** | Series de tiempo con agregados continuos | Resuelve bien las ventanas, pero agrega otra base de disco con latencia de milisegundos. Las tasas de referencia ya se resuelven en PostgreSQL con índices BRIN (Parte 1, O3). |
 | **Neo4j** | Grafos: redes de cuentas compartidas y "mulas" | Muy útil para *investigar* redes en fase 2. Para el scoring en línea basta el `SCARD` sobre el set de la cuenta. |
-| **Kafka** en lugar de Kinesis | Streaming con más ecosistema | Equivalente en función. Kinesis es administrado y se integra de forma nativa con Lambda y Firehose en AWS, sin operar brokers. |
+| **Amazon Kinesis** en lugar de Kafka | Streaming administrado y nativo de AWS, integrado con Lambda y Firehose | Equivalente en función y algo más barato con poco tráfico. Se eligió **Kafka en Confluent Cloud** porque también es administrado (no se operan brokers) y ofrece **conectores administrados** que resuelven dos piezas de la arquitectura: Debezium para el CDC desde PostgreSQL y S3 Sink para el Data Lake. Además tiene Schema Registry para el contrato de eventos, retención configurable con relectura por *offset* y es la plataforma de streaming que se trabaja en el curso. |
 | **SageMaker Feature Store** | Feature store administrado (en línea y fuera de línea) | Buena opción a futuro. Hoy no ofrece las ventanas deslizantes ni el ranking de cola que necesita el caso, y su almacenamiento en línea es más caro por lectura. |
 
 # 4. Modelo de datos NoSQL
@@ -249,11 +249,11 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 <text x="355" y="363" font-weight="600">Servicio de scoring</text><text x="355" y="380" font-size="11.5" fill="#5a6675">inferencia en línea</text><text x="355" y="394" font-size="11.5" fill="#5a6675">modelo en memoria</text>
 <text x="595" y="140" font-weight="700" font-size="14">PostgreSQL</text><text x="595" y="158" font-size="11.5" fill="#5a6675">núcleo relacional · 15 tablas</text><text x="595" y="173" font-size="11.5" fill="#5a6675">ACID · sistema de registro</text>
 <text x="650" y="282" font-weight="600">Amazon S3</text><text x="650" y="298" font-size="11.5" fill="#5a6675">comprobantes</text>
-<text x="895" y="117" font-weight="600" font-size="12.5">CDC · replicación lógica</text>
-<text x="895" y="181" font-weight="700">Amazon Kinesis</text><text x="895" y="198" font-size="11.5" fill="#5a6675">Data Streams · por id_cliente</text>
-<text x="895" y="261" font-weight="600">Procesador de features</text><text x="895" y="278" font-size="11.5" fill="#5a6675">Lambda / Flink · incremental</text>
+<text x="895" y="117" font-weight="600" font-size="12.5">CDC · conector Debezium</text>
+<text x="895" y="181" font-weight="700">Apache Kafka</text><text x="895" y="198" font-size="11.5" fill="#5a6675">Confluent Cloud · clave id_cliente</text>
+<text x="895" y="261" font-weight="600">Procesador de features</text><text x="895" y="278" font-size="11.5" fill="#5a6675">consumer group · incremental</text>
 <text x="1220" y="282" font-weight="700" font-size="15">Redis (ElastiCache)</text><text x="1220" y="302" font-size="12" fill="#5a6675">feature store en línea</text><text x="1220" y="320" font-size="11.5" fill="#5a6675">perfil · ventanas deslizantes</text><text x="1220" y="336" font-size="11.5" fill="#5a6675">riesgo por operación · cola</text><text x="1220" y="352" font-size="11.5" fill="#5a6675">TTL · datos derivados</text>
-<text x="875" y="584" font-weight="600">Kinesis Firehose</text><text x="875" y="600" font-size="11.5" fill="#5a6675">a Parquet</text>
+<text x="875" y="584" font-weight="600">Conector S3 Sink</text><text x="875" y="600" font-size="11.5" fill="#5a6675">Confluent · a Parquet</text>
 <text x="650" y="585" font-weight="700">Data Lake S3</text><text x="650" y="602" font-size="11.5" fill="#5a6675">raw / curated</text>
 <text x="415" y="584" font-weight="600">Athena / Glue</text><text x="415" y="600" font-size="11.5" fill="#5a6675">features históricas</text>
 <text x="175" y="580" font-weight="700">SageMaker Pipelines</text><text x="175" y="597" font-size="11.5" fill="#5a6675">entrenamiento · validación</text><text x="175" y="611" font-size="11.5" fill="#5a6675">registro de modelos</text>
@@ -264,10 +264,10 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 
 1. **Registro.** El cliente crea la operación y sube su comprobante. Los servicios de negocio la registran en **PostgreSQL** dentro de una transacción (operación + historial de estados), igual que en la Parte 1.
 2. **Scoring síncrono.** La API llama al **servicio de scoring**. Este lee en un *pipeline* las features del cliente en **Redis** (≈ 1 ms), suma la operación actual, aplica el modelo cargado en memoria (≈ 10–20 ms) y guarda el score, los motivos y la posición en la cola de riesgo. Todo agrega menos de 60 ms a la respuesta.
-3. **Eventos.** El **CDC** (replicación lógica de PostgreSQL con Debezium o AWS DMS) publica cada cambio confirmado en **Kinesis**. La API no escribe en dos bases, así que no puede haber una operación en Redis que no exista en PostgreSQL.
-4. **Actualización incremental.** El **procesador de features** consume los eventos en orden por cliente y actualiza los contadores y las ventanas en Redis con un script Lua atómico.
+3. **Eventos.** El **CDC** (conector Debezium de Confluent, que lee la replicación lógica de PostgreSQL) publica cada cambio confirmado en un topic de **Kafka**, con `id_cliente` como clave. La API no escribe en dos bases, así que no puede haber una operación en Redis que no exista en PostgreSQL.
+4. **Actualización incremental.** El **procesador de features**, un *consumer group* de Kafka, consume los eventos en orden por cliente y actualiza los contadores y las ventanas en Redis con un script Lua atómico.
 5. **Back-office.** Ve la cola ordenada por riesgo, con los motivos del modelo. La decisión se escribe en PostgreSQL (`historial_estado`) y, por CDC, se convierte en una **etiqueta** para el siguiente entrenamiento.
-6. **Histórico y entrenamiento.** **Kinesis Firehose** guarda todos los eventos en el **Data Lake S3** en Parquet. Cada noche se exporta también `v_features_cliente`. **Athena/Glue** preparan el conjunto de entrenamiento y **SageMaker Pipelines** entrena, valida (precisión en el top-k de la cola, recall de ROS confirmados) y registra el modelo, que se despliega en el servicio de scoring.
+6. **Histórico y entrenamiento.** El **conector S3 Sink** de Confluent guarda todos los eventos en el **Data Lake S3** en Parquet. Cada noche se exporta también `v_features_cliente`. **Athena/Glue** preparan el conjunto de entrenamiento y **SageMaker Pipelines** entrena, valida (precisión en el top-k de la cola, recall de ROS confirmados) y registra el modelo, que se despliega en el servicio de scoring.
 7. **Perfil batch.** Cada noche, el mismo `v_features_cliente` (5,5 s para todos los clientes) reescribe `cli:{id}:perfil` en Redis.
 
 # 6. Comparación entre PostgreSQL y Redis
@@ -323,7 +323,7 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 | Fase | Alcance | Valor |
 |---|---|---|
 | 1 · Batch | `v_features_cliente` nocturna → modelo Isolation Forest → ranking diario de clientes para cumplimiento | Detecta el fraccionamiento de C6 sin infraestructura nueva |
-| 2 · Tiempo real | CDC → Kinesis → Redis; scoring síncrono al cargar el comprobante; cola por riesgo | Prioriza la revisión operación por operación |
+| 2 · Tiempo real | CDC → Kafka → Redis; scoring síncrono al cargar el comprobante; cola por riesgo | Prioriza la revisión operación por operación |
 | 3 · Aprendizaje continuo | Data Lake + SageMaker con etiquetas del back-office; monitoreo de deriva de features | El modelo mejora con cada decisión |
 | 4 · Investigación | Grafo de cuentas compartidas (Neo4j) para redes de "mulas" | Análisis de redes, no solo de clientes individuales |
 
@@ -332,7 +332,7 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 | Riesgo | Mitigación |
 |---|---|
 | Diferencia entre las features en línea y las de entrenamiento (*training-serving skew*) | Se guarda el mismo vector de features que se usó al predecir, y se compara a diario contra `v_features_cliente` |
-| Eventos duplicados o desordenados en Kinesis | *Partition key* = id_cliente (orden por cliente) y último número de secuencia aplicado en el perfil (idempotencia) |
+| Eventos duplicados o desordenados en Kafka | Clave del mensaje = id_cliente (misma partición, orden por cliente) y último *offset* aplicado guardado en el perfil (idempotencia) |
 | Caída de Redis | Réplica en otra zona; modo degradado calculando en PostgreSQL; la operación nunca se bloquea |
 | Sesgo del modelo o falsos positivos | El modelo **prioriza**, no rechaza: la decisión final es siempre humana y queda auditada en `historial_estado` |
 | Datos personales fuera del núcleo | Redis y el Data Lake solo guardan IDs internos y hashes; cifrado en tránsito y en reposo |
@@ -341,5 +341,5 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 
 1. **El caso de IA sale de los datos, no de una moda.** La Parte 1 mostró que el principal motivo de rechazo es el cumplimiento y que los mayores clientes fraccionan sus operaciones. Detectarlo a tiempo es el problema de negocio con más impacto.
 2. **El problema no es de volumen sino de latencia y patrón de acceso:** 18 500 eventos por día y un estado en línea de ≈ 150 MB. Lo que PostgreSQL no hace bien es mantener ventanas por cliente con costo constante; con él, las features cuestan de 6 a 257 ms según el historial.
-3. **Redis es la tecnología adecuada** porque sus estructuras (sorted sets, hashes, sets y TTL) son las mismas operaciones que piden las features. Con Kinesis (CDC) y S3 completa un ciclo de detección, decisión humana y reentrenamiento.
+3. **Redis es la tecnología adecuada** porque sus estructuras (sorted sets, hashes, sets y TTL) son las mismas operaciones que piden las features. Con Kafka en Confluent Cloud (CDC) y S3 completa un ciclo de detección, decisión humana y reentrenamiento.
 4. **PostgreSQL no se reemplaza, se protege:** sigue siendo el sistema de registro, con su integridad, sus índices y sus consultas de negocio, mientras la carga de tiempo real se resuelve fuera de él. Eso es Polyglot Persistence aplicada con criterio.

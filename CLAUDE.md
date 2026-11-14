@@ -13,8 +13,15 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   implementación, 10 consultas, 8 features y optimización con EXPLAIN / EXPLAIN ANALYZE.
 - **Parte 2 (entregable 2): terminada.** Sus 3 PDF van también en `grupo_01/` (fuentes en
   `docs/fuentes/parte2/`). Caso de IA: detección de operaciones inusuales en tiempo real
-  (prevención de lavado de activos). Tecnología: Redis como feature store en línea, Kinesis
-  (CDC desde PostgreSQL) y Data Lake S3. Revisada contra el enunciado el 14/11/2026: cubre todo.
+  (prevención de lavado de activos). Tecnología: Redis como feature store en línea, Kafka
+  en Confluent Cloud (CDC con Debezium, topics con clave `id_cliente`, conector S3 Sink) y Data
+  Lake S3. Revisada contra el enunciado el 14/11/2026: cubre todo. Kafka reemplazó a Kinesis
+  (el profesor enseña Kafka / Confluent Cloud en clase).
+- **Presentación final** (máx. ≈ 11 diapositivas, con demo). Demo propuesta: seguir a
+  CLI-ZYCHEZ. Acto 1 en PostgreSQL (restricción que rechaza, C6, features, O1 antes/después).
+  Acto 2: evento en un topic de Confluent Cloud → consumidor → Redis en Docker (< 1 ms frente a
+  257 ms en PostgreSQL). Falta: cuenta de Confluent Cloud (cluster y API keys los crea el equipo),
+  script de la demo y guion de diapositivas.
 
 ## Pendientes (al 14/11/2026)
 - Enunciados en `docs/enunciados/` (`parte1.md`, `parte2.md`).

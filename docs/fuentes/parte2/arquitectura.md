@@ -1,7 +1,7 @@
 <!-- pagina: A4 landscape -->
 # NexoCambio · Arquitectura de datos para la detección de operaciones inusuales
 
-Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transaccional) + **Redis** (feature store en línea) + **Kinesis** (eventos) + **Data Lake S3** (entrenamiento)
+Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transaccional) + **Redis** (feature store en línea) + **Kafka en Confluent Cloud** (eventos) + **Data Lake S3** (entrenamiento)
 
 <div class="diagrama"><svg viewBox="0 20 1400 640" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="13">
 <defs><marker id="f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#44505c"/></marker></defs>
@@ -84,11 +84,11 @@ Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transacc
 <text x="355" y="363" font-weight="600">Servicio de scoring</text><text x="355" y="380" font-size="11.5" fill="#5a6675">inferencia en línea</text><text x="355" y="394" font-size="11.5" fill="#5a6675">modelo en memoria</text>
 <text x="595" y="140" font-weight="700" font-size="14">PostgreSQL</text><text x="595" y="158" font-size="11.5" fill="#5a6675">núcleo relacional · 15 tablas</text><text x="595" y="173" font-size="11.5" fill="#5a6675">ACID · sistema de registro</text>
 <text x="650" y="282" font-weight="600">Amazon S3</text><text x="650" y="298" font-size="11.5" fill="#5a6675">comprobantes</text>
-<text x="895" y="117" font-weight="600" font-size="12.5">CDC · replicación lógica</text>
-<text x="895" y="181" font-weight="700">Amazon Kinesis</text><text x="895" y="198" font-size="11.5" fill="#5a6675">Data Streams · por id_cliente</text>
-<text x="895" y="261" font-weight="600">Procesador de features</text><text x="895" y="278" font-size="11.5" fill="#5a6675">Lambda / Flink · incremental</text>
+<text x="895" y="117" font-weight="600" font-size="12.5">CDC · conector Debezium</text>
+<text x="895" y="181" font-weight="700">Apache Kafka</text><text x="895" y="198" font-size="11.5" fill="#5a6675">Confluent Cloud · clave id_cliente</text>
+<text x="895" y="261" font-weight="600">Procesador de features</text><text x="895" y="278" font-size="11.5" fill="#5a6675">consumer group · incremental</text>
 <text x="1220" y="282" font-weight="700" font-size="15">Redis (ElastiCache)</text><text x="1220" y="302" font-size="12" fill="#5a6675">feature store en línea</text><text x="1220" y="320" font-size="11.5" fill="#5a6675">perfil · ventanas deslizantes</text><text x="1220" y="336" font-size="11.5" fill="#5a6675">riesgo por operación · cola</text><text x="1220" y="352" font-size="11.5" fill="#5a6675">TTL · datos derivados</text>
-<text x="875" y="584" font-weight="600">Kinesis Firehose</text><text x="875" y="600" font-size="11.5" fill="#5a6675">a Parquet</text>
+<text x="875" y="584" font-weight="600">Conector S3 Sink</text><text x="875" y="600" font-size="11.5" fill="#5a6675">Confluent · a Parquet</text>
 <text x="650" y="585" font-weight="700">Data Lake S3</text><text x="650" y="602" font-size="11.5" fill="#5a6675">raw / curated</text>
 <text x="415" y="584" font-weight="600">Athena / Glue</text><text x="415" y="600" font-size="11.5" fill="#5a6675">features históricas</text>
 <text x="175" y="580" font-weight="700">SageMaker Pipelines</text><text x="175" y="597" font-size="11.5" fill="#5a6675">entrenamiento · validación</text><text x="175" y="611" font-size="11.5" fill="#5a6675">registro de modelos</text>
@@ -99,8 +99,8 @@ Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transacc
 |---|---|---|---|
 | 1 | Los servicios registran clientes, cotizaciones, operaciones y decisiones | **PostgreSQL** | Integridad referencial, máquina de estados con CHECK, transacciones ACID: es el *sistema de registro*. |
 | 2–4 | Al cargar el comprobante, la API pide un puntaje de riesgo; el servicio de scoring lee las features del cliente y guarda el resultado | **Redis** | Lectura por clave en menos de 1 ms, ventanas deslizantes con sorted sets, TTL nativo. Evita agregar el historial en PostgreSQL en cada evento. |
-| 5–6 | Cada cambio confirmado en PostgreSQL se publica como evento (Change Data Capture) | **Kinesis** | Desacopla: la API no escribe en dos bases. El procesador actualiza las ventanas de forma incremental y en orden por cliente (partition key = id_cliente). |
-| 7–8 | Los eventos y una foto diaria de `v_features_cliente` llegan al Data Lake | **S3 + Parquet** | Almacenamiento columnar barato para entrenar con todo el histórico sin cargar la base transaccional. |
+| 5–6 | Cada cambio confirmado en PostgreSQL se publica como evento (Change Data Capture con el conector Debezium) | **Kafka (Confluent Cloud)** | Desacopla: la API no escribe en dos bases. La clave del mensaje es `id_cliente`, así que los eventos de un cliente caen en la misma partición y el procesador los aplica en orden. |
+| 7–8 | Los eventos (vía el conector S3 Sink) y una foto diaria de `v_features_cliente` llegan al Data Lake | **S3 + Parquet** | Almacenamiento columnar barato para entrenar con todo el histórico sin cargar la base transaccional. |
 | 9 | Se entrena, valida y despliega el modelo (Isolation Forest / gradient boosting) | **SageMaker** | Las etiquetas salen de las decisiones del back-office (rechazos por cumplimiento) y vuelven a mejorar el modelo. |
 
 # Flujo de scoring en tiempo real y presupuesto de latencia
@@ -113,7 +113,7 @@ sequenceDiagram
     participant PG as PostgreSQL
     participant SC as Servicio de scoring
     participant R as Redis
-    participant K as Kinesis
+    participant K as Kafka (Confluent Cloud)
     participant P as Procesador de features
     C->>API: POST /operaciones/{id}/comprobante
     API->>PG: BEGIN · UPDATE operacion · INSERT historial_estado · COMMIT
@@ -124,8 +124,8 @@ sequenceDiagram
     SC->>R: HSET op:{codigo}:riesgo · ZADD cola:riesgo
     SC-->>API: score 0,87 · motivos [cerca_umbral, frecuencia_24h]
     API-->>C: 200 · Pendiente de validación
-    PG--)K: CDC: evento comprobante_cargado (asíncrono)
-    K--)P: lote de eventos (≈ 1 s)
+    PG--)K: CDC (Debezium): evento comprobante_cargado (asíncrono)
+    K--)P: consumo por partición, en orden por cliente (≈ 1 s)
     P--)R: ZADD cli:{id}:ops · ZREMRANGEBYSCORE (ventana 120 días)
 ```
 
@@ -137,4 +137,4 @@ sequenceDiagram
 | **Total agregado a la API** | **≤ 60 ms** | El cliente no percibe la diferencia; el analista recibe la operación ya clasificada. |
 | Frescura de las ventanas (CDC → Redis) | ≤ 5 s | La operación actual se suma en el propio servicio de scoring; el evento asíncrono actualiza el estado para la siguiente. |
 
-**Qué NO cambia:** PostgreSQL sigue siendo la única fuente de verdad. Redis guarda datos **derivados y reconstruibles**: si se pierde, se repuebla desde PostgreSQL (perfil batch) y desde Kinesis (retención de 7 días) o desde el Data Lake. El back-office ve la cola ordenada por riesgo, pero la decisión se registra siempre en `historial_estado`.
+**Qué NO cambia:** PostgreSQL sigue siendo la única fuente de verdad. Redis guarda datos **derivados y reconstruibles**: si se pierde, se repuebla desde PostgreSQL (perfil batch) y desde Kafka (retención de 7 días: se vuelve a leer desde un *offset* anterior) o desde el Data Lake. El back-office ve la cola ordenada por riesgo, pero la decisión se registra siempre en `historial_estado`.

@@ -9,7 +9,7 @@ En PostgreSQL se modela **la realidad del negocio** (entidades normalizadas) y d
 1. **Todo se accede por clave del cliente.** No hay joins: cada estructura responde una feature con uno o dos comandos de costo O(1) u O(log n).
 2. **Colocalidad con *hash tags*.** Todas las claves de un cliente llevan `{id_cliente}` entre llaves (por ejemplo `cli:{41768}:perfil`). En modo clúster, Redis las ubica en el mismo *slot*, lo que permite leerlas en un *pipeline* y actualizarlas juntas con un script Lua atómico.
 3. **Ventanas deslizantes nativas.** Se usan *sorted sets* (score = instante) para "últimas 24 horas" y *buckets diarios* en un hash para "últimos 30 y 90 días".
-4. **Datos derivados y con caducidad.** Nada aquí es fuente de verdad. Cada clave tiene TTL o una poda explícita; si Redis se pierde, se reconstruye desde PostgreSQL y desde Kinesis.
+4. **Datos derivados y con caducidad.** Nada aquí es fuente de verdad. Cada clave tiene TTL o una poda explícita; si Redis se pierde, se reconstruye desde PostgreSQL y desde Kafka.
 5. **Escrituras incrementales.** Cada evento suma (`HINCRBY`, `ZADD`) en lugar de recalcular el historial: el costo por evento es constante aunque el cliente tenga miles de operaciones.
 
 ## 2. Mapa de claves (*keyspace*)
@@ -121,7 +121,7 @@ El servicio de scoring envía todos estos comandos en **un solo *pipeline*** (un
 
 ## 5. Actualización atómica por evento (script Lua)
 
-El procesador de features recibe de Kinesis los eventos de un cliente **en orden**, porque la *partition key* es `id_cliente`. Cada evento `operacion_creada` ejecuta un script, de modo que las cuatro estructuras del cliente se actualizan juntas o no se actualiza ninguna:
+El procesador de features (un *consumer group* de Kafka) recibe los eventos de un cliente **en orden**, porque la clave del mensaje es `id_cliente` y todos sus eventos caen en la misma partición. Cada evento `operacion_creada` ejecuta un script, de modo que las cuatro estructuras del cliente se actualizan juntas o no se actualiza ninguna:
 
 ```lua
 -- KEYS: diario, ops24h, destinos, perfil   (mismo hash tag {id_cliente} → mismo slot)
@@ -138,11 +138,22 @@ redis.call('HSET', KEYS[4], 'ultima_operacion', ARGV[2])
 return 1
 ```
 
-La clave `cta:{hash}:clientes` no comparte el hash tag del cliente, así que se actualiza con un `SADD` aparte, que es idempotente. Si el evento se reprocesa (*at-least-once* de Kinesis), los contadores podrían duplicarse. Para evitarlo, el procesador guarda el último número de secuencia aplicado por cliente (`HSET perfil ult_seq …`) y descarta los eventos ya vistos.
+La clave `cta:{hash}:clientes` no comparte el hash tag del cliente, así que se actualiza con un `SADD` aparte, que es idempotente. Si el evento se reprocesa (entrega *at-least-once* de Kafka, por ejemplo tras reiniciar el consumidor antes de confirmar el *offset*), los contadores podrían duplicarse. Para evitarlo, el procesador guarda el último *offset* aplicado por cliente (`HSET perfil ult_offset …`) y descarta los eventos ya vistos. Como los eventos de un cliente están siempre en la misma partición, su *offset* solo crece.
 
-## 6. Evento de negocio en Kinesis (JSON)
+## 6. Evento de negocio en Kafka (JSON)
 
-Lo produce el conector CDC a partir del WAL de PostgreSQL, ya enriquecido con el monto en USD. Es el contrato entre el núcleo relacional y el mundo de streaming:
+Lo produce el conector CDC (Debezium) a partir del WAL de PostgreSQL, ya enriquecido con el monto en USD. Es el contrato entre el núcleo relacional y el mundo de streaming, y su esquema se registra en el **Schema Registry** de Confluent para que productores y consumidores no se desalineen.
+
+| Topic | Eventos | Clave | Particiones | Retención |
+|---|---|---|---|---|
+| `nexocambio.operaciones` | `operacion_creada` | `id_cliente` | 6 | 7 días |
+| `nexocambio.comprobantes` | `comprobante_cargado` | `id_cliente` | 6 | 7 días |
+| `nexocambio.estados` | `estado_cambiado` (incluye el analista y el motivo de rechazo) | `id_cliente` | 6 | 7 días |
+| `nexocambio.clientes` | `cliente_registrado` | `id_cliente` | 3 | compactado |
+
+Seis particiones bastan con holgura: el pico actual es de 73 eventos por minuto y, con 10 veces más, de unos 12 por segundo. El topic de clientes es **compactado**: Kafka guarda el último evento de cada cliente, que sirve para reconstruir perfiles.
+
+Mensaje en `nexocambio.operaciones` (clave `41768`):
 
 ```json
 {
@@ -150,7 +161,6 @@ Lo produce el conector CDC a partir del WAL de PostgreSQL, ya enriquecido con el
   "version": 1,
   "id_evento": "6c1e2f9a-8d4b-4a7e-9f0e-3b2d51c7a8e4",
   "ocurrido_en": "2026-10-21T10:15:32-05:00",
-  "partition_key": "41768",
   "operacion": {
     "codigo_operacion": "NX-7KQ2M9TA",
     "id_cliente": 41768,
@@ -167,7 +177,7 @@ Lo produce el conector CDC a partir del WAL de PostgreSQL, ya enriquecido con el
 }
 ```
 
-Otros tipos de evento: `comprobante_cargado`, `estado_cambiado` (incluye el analista y el motivo de rechazo) y `cliente_registrado`. Kinesis los retiene 7 días, lo que permite reprocesarlos si cambia la lógica de una feature.
+La retención de 7 días permite reprocesar los eventos si cambia la lógica de una feature: basta con mover el *offset* del consumer group hacia atrás.
 
 ## 7. Vector de features para el modelo (documento JSON)
 
@@ -210,6 +220,6 @@ Es lo que el servicio de scoring arma con los resultados del *pipeline* y entreg
 | **Total** | | **≈ 150 MB hoy · ≈ 1,5 GB con 10× de crecimiento** |
 
 - **Nodo:** un clúster pequeño (por ejemplo `cache.r7g.large`, 13 GB) con una réplica en otra zona de disponibilidad. El volumen cabe holgadamente en memoria incluso con el crecimiento proyectado; la réplica es para disponibilidad, no para capacidad.
-- **Persistencia:** snapshots diarios. No se necesita durabilidad estricta: el estado se reconstruye con el job batch desde PostgreSQL más los últimos 7 días de Kinesis.
+- **Persistencia:** snapshots diarios. No se necesita durabilidad estricta: el estado se reconstruye con el job batch desde PostgreSQL más los últimos 7 días de Kafka.
 - **Seguridad:** cifrado en tránsito y en reposo; no se guardan nombres, documentos ni números de cuenta, solo IDs internos y hashes. Los datos personales permanecen en PostgreSQL.
 - **Si Redis no responde:** el scoring calcula las features de ese cliente directamente en PostgreSQL, con las mismas consultas de la Parte 1. El índice `idx_operacion_cliente_fecha` (O1) lee el historial del cliente en menos de 1 ms, y con los joins a cotización y tasa el cálculo toma pocos milisegundos: aceptable para un modo degradado, aunque no para todo el tráfico. Si eso también falla, se usan reglas simples y la operación **no se bloquea**: la validación humana del back-office sigue funcionando igual.

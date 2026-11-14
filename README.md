@@ -17,13 +17,13 @@ curso de Cloud Computing. Autorizado por el docente, con datos sintéticos.
 | `resultados/` | Salidas completas de `04_queries.sql`, `05_indexes.sql` y `06_parte2_caracterizacion.sql` |
 
 ## Entregable 2 (también en `grupo_01/`)
-Arquitectura para IA: detección de operaciones inusuales en tiempo real con Redis, Kinesis y
+Arquitectura para IA: detección de operaciones inusuales en tiempo real con Redis, Kafka (Confluent Cloud) y
 Data Lake. Fuentes en `docs/fuentes/parte2/`.
 | Archivo | Contenido |
 |---|---|
 | `informe_final.pdf` | Caso de IA, caracterización, selección de tecnología, comparación y Polyglot Persistence |
 | `arquitectura.pdf` | Diagrama de arquitectura, flujos, secuencia de scoring y presupuesto de latencia |
-| `modelo_nosql.pdf` | Diseño de claves en Redis, equivalencia con las features SQL y eventos de Kinesis |
+| `modelo_nosql.pdf` | Diseño de claves en Redis, equivalencia con las features SQL y topics de Kafka |
 | `sql/06_parte2_caracterizacion.sql` | Mide las cifras de la caracterización del problema |
 
 Los enunciados de ambas partes están en `docs/enunciados/`.
