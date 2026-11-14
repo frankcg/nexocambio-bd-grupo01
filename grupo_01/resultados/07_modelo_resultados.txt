@@ -1,0 +1,29 @@
+﻿Clientes: 35,438 · con anomalía inyectada: 492 (1.39%)
+perfil_anomalia
+pitufeo        160
+pico           122
+multicuenta    119
+nocturno        91
+ROC AUC: 0.896 · Average precision: 0.552
+Top 2% (k = 709) · base de positivos: 1.39%
+
+                                 revisados  detectados precision recall
+Isolation Forest (top 2 %)             709         329     46.4%  66.9%
+Regla: ratio_cerca_umbral ≥ 0,5        173         160     92.5%  32.5%
+                 clientes detecta_modelo detecta_regla
+perfil_anomalia                                       
+multicuenta           119          69.7%          0.0%
+nocturno               91          92.3%          0.0%
+pico                  122           1.6%          0.0%
+pitufeo               160         100.0%        100.0%
+codigo_cliente  score_riesgo perfil_anomalia  operaciones_30d  monto_promedio_usd_90d  dias_desde_ultima_operacion  ratio_rechazo  ratio_cerca_umbral_90d  ratio_cuentas_terceros
+    CLI-VO7APN         0.741        nocturno                1                14211.30                           22          1.000                   0.000                     0.0
+    CLI-ZYCHEZ         0.726         pitufeo              405                 7314.88                            0          0.220                   0.754                     0.0
+    CLI-XKLBXW         0.725         pitufeo              329                 7318.89                            0          0.216                   0.753                     0.0
+    CLI-BIFTXW         0.711         pitufeo              116                 6942.38                            0          0.225                   0.712                     0.0
+    CLI-Q751WQ         0.699         pitufeo               70                 7203.66                            0          0.140                   0.742                     0.0
+    CLI-6322M4         0.694         pitufeo               64                 7368.81                            0          0.154                   0.763                     0.0
+    CLI-HI0ZOY         0.690         pitufeo               34                 7586.84                            4          0.235                   0.786                     0.0
+    CLI-WV60VK         0.690         pitufeo               10                 9392.17                            0          0.500                   1.000                     0.0
+    CLI-TXJZX6         0.688        nocturno                0                     NaN                          628          0.000                     NaN                     0.0
+    CLI-IUQVKE         0.688         pitufeo               50                 7415.03                            1          0.205                   0.762                     0.0

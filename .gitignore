@@ -2,6 +2,7 @@
 generador/salida/
 *.csv
 !grupo_01/datos/dataset.csv
+!grupo_01/datos/features_clientes.csv
 
 # Python
 __pycache__/
