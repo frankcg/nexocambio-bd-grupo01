@@ -19,10 +19,10 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
 ## Pendientes (al 14/11/2026)
 - Enunciado de la Parte 1 en `docs/enunciados/parte1.md`. El informe cubre todos sus puntos
   (revisado el 14/11/2026). Falta el enunciado de la Parte 2.
-- **Subir a GitHub** (lo pide el equipo): crear el repositorio y hacer push. El repo aún **no
-  tiene remoto**. `gh` está autenticado como `frankcg` (keyring), pero la variable `GITHUB_TOKEN`
-  tiene un token inválido que lo bloquea: quitarla o ejecutar `gh` sin ella. `datos/completo/`
-  queda fuera (`*.csv` ya está en `.gitignore`; GitHub rechaza archivos de más de 100 MB).
+- **GitHub:** subido el 14/11/2026 a https://github.com/frankcg/nexocambio-bd-grupo01 (público,
+  rama `main`, remoto `origin`). `gh` y `git push` usan la sesión de `frankcg` (keyring), pero la
+  variable `GITHUB_TOKEN` tiene un token inválido que los bloquea: en PowerShell ejecutar antes
+  `Remove-Item Env:GITHUB_TOKEN`. Al ser público, nunca subir secretos.
 - `grupo_01.rar` en la raíz (sin seguimiento): paquete para la entrega; no commitearlo.
 
 ## Estructura
