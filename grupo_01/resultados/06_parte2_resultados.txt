@@ -348,3 +348,14 @@
  Execution Time: 5505.858 ms
 (61 filas)
 
+
+=========== Resumen: Execution Time de 5 corridas (14/11/2026, caché fría) ===========
+La 1.ª corrida (calentamiento) se descartó. Esta salida corresponde a la corrida 5.
+ corrida | CLI-06EZN7 (ms) | CLI-ZYCHEZ (ms) | todos (ms)
+---------+-----------------+-----------------+-----------
+       1 |           7.250 |         262.460 |  5375.219
+       2 |           6.120 |         346.763 |  5180.932
+       3 |           5.485 |         257.375 |  5735.150
+       4 |           6.212 |         231.245 |  5522.765
+       5 |           5.804 |         254.000 |  5505.858
+ mediana |           6.120 |         257.375 |  5505.858

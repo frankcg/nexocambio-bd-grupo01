@@ -73,23 +73,25 @@ Las cifras salen de los datos de la Parte 1 (septiembre de 2026, el último mes 
 
 ## 2.1 ¿Por qué no calcular las features en PostgreSQL en cada evento?
 
-Se midió la vista `v_features_cliente` de la Parte 1, ya con el índice `idx_operacion_cliente_fecha` de la optimización O1, con caché caliente:
+Se midió la vista `v_features_cliente` de la Parte 1, ya con el índice `idx_operacion_cliente_fecha` de la optimización O1 (`06_parte2_caracterizacion.sql`, mediana de 5 corridas):
 
 <div class="metricas">
 
 | Cálculo de features en PostgreSQL | Operaciones del cliente | Tiempo |
 |---|---|---|
-| Cliente típico (CLI-06EZN7) | 26 | 5,6 ms |
-| Cliente con fraccionamiento (CLI-ZYCHEZ) | 2 809 | **100,4 ms** (18 veces más) |
-| Todos los clientes (batch) | 35 438 clientes | 3,6 s |
+| Cliente típico (CLI-06EZN7) | 26 | 6,1 ms |
+| Cliente con fraccionamiento (CLI-ZYCHEZ) | 2 809 | **257,4 ms** (42 veces más) |
+| Todos los clientes (batch) | 35 438 clientes | 5,5 s |
 
 </div>
+
+Los tiempos son con **caché fría**: el equipo tenía poca memoria libre, así que PostgreSQL leyó parte de los datos del disco (por ejemplo, 6 258 de 34 944 páginas para CLI-ZYCHEZ). Con la caché caliente los tiempos bajan, pero el cliente con más historial sigue siendo muchas veces más lento que el típico, porque el trabajo crece con el historial.
 
 El resultado es claro:
 
 - **El costo de PostgreSQL crece con el historial del cliente, y los clientes más riesgosos son justamente los que tienen más historial.** Hacen 10 operaciones diarias, y cada una obligaría a agregar 2 800 filas con joins a cotización y tasa.
 - **Ese trabajo compite por CPU y caché** con las transacciones de negocio en la misma base.
-- **Como cálculo batch nocturno funciona muy bien** (3,6 s para todos los clientes), y por eso se mantiene para el perfil estable.
+- **Como cálculo batch nocturno funciona muy bien** (5,5 s para todos los clientes), y por eso se mantiene para el perfil estable.
 
 Lo que falta es un almacenamiento donde el estado de cada cliente se **mantenga actualizado de forma incremental** y se lea en un tiempo constante.
 
@@ -111,7 +113,7 @@ Se complementa con **Amazon Kinesis Data Streams** como bus de eventos (alimenta
 
 | Alternativa | Qué ofrecía | Por qué no fue la principal |
 |---|---|---|
-| **Solo PostgreSQL** (vistas materializadas o tablas de agregados) | Una sola tecnología, consistencia fuerte | Las vistas materializadas se recalculan completas (3,6 s) y no por evento. Las tablas de agregados por trigger agregan escrituras a cada transacción del núcleo y bloqueos en clientes muy activos. |
+| **Solo PostgreSQL** (vistas materializadas o tablas de agregados) | Una sola tecnología, consistencia fuerte | Las vistas materializadas se recalculan completas (5,5 s) y no por evento. Las tablas de agregados por trigger agregan escrituras a cada transacción del núcleo y bloqueos en clientes muy activos. |
 | **Amazon DynamoDB** (ya se usa en el proyecto de Cloud) | Clave–valor serverless, latencia de un dígito en ms, alta durabilidad | Es una alternativa válida y más barata con poco tráfico. Pero no tiene *sorted sets* ni conjuntos con cardinalidad, así que las ventanas deslizantes y el ranking de riesgo exigen más lógica en la aplicación y más lecturas. Se deja como plan B si se prioriza lo serverless. |
 | **TimescaleDB / InfluxDB** | Series de tiempo con agregados continuos | Resuelve bien las ventanas, pero agrega otra base de disco con latencia de milisegundos. Las tasas de referencia ya se resuelven en PostgreSQL con índices BRIN (Parte 1, O3). |
 | **Neo4j** | Grafos: redes de cuentas compartidas y "mulas" | Muy útil para *investigar* redes en fase 2. Para el scoring en línea basta el `SCARD` sobre el set de la cuenta. |
@@ -266,7 +268,7 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 4. **Actualización incremental.** El **procesador de features** consume los eventos en orden por cliente y actualiza los contadores y las ventanas en Redis con un script Lua atómico.
 5. **Back-office.** Ve la cola ordenada por riesgo, con los motivos del modelo. La decisión se escribe en PostgreSQL (`historial_estado`) y, por CDC, se convierte en una **etiqueta** para el siguiente entrenamiento.
 6. **Histórico y entrenamiento.** **Kinesis Firehose** guarda todos los eventos en el **Data Lake S3** en Parquet. Cada noche se exporta también `v_features_cliente`. **Athena/Glue** preparan el conjunto de entrenamiento y **SageMaker Pipelines** entrena, valida (precisión en el top-k de la cola, recall de ROS confirmados) y registra el modelo, que se despliega en el servicio de scoring.
-7. **Perfil batch.** Cada noche, el mismo `v_features_cliente` (3,6 s para todos los clientes) reescribe `cli:{id}:perfil` en Redis.
+7. **Perfil batch.** Cada noche, el mismo `v_features_cliente` (5,5 s para todos los clientes) reescribe `cli:{id}:perfil` en Redis.
 
 # 6. Comparación entre PostgreSQL y Redis
 
@@ -279,7 +281,7 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 | **Transacciones** | ACID completas, aislamiento configurable | Atómicas por comando, `MULTI`/`EXEC` y scripts Lua, sin rollback |
 | **Durabilidad** | Alta: WAL y commit síncrono | Media: snapshots o AOF; aquí los datos son reconstruibles |
 | **Consistencia con la fuente** | Es la fuente de verdad | Eventual (≈ segundos vía CDC) |
-| **Latencia típica** | Milisegundos; crece con el volumen agregado (5,6 a 100 ms en las features) | Submilisegundo y constante (O(1) – O(log n) por comando) |
+| **Latencia típica** | Milisegundos; crece con el volumen agregado (6 a 257 ms en las features, con caché fría) | Submilisegundo y constante (O(1) – O(log n) por comando) |
 | **Consultas** | SQL arbitrario, ad hoc, analítico (CTE, ventanas, ROLLUP) | Solo las que se modelaron; sin consultas ad hoc |
 | **Caducidad de datos** | Manual (DELETE, particiones) | Nativa (TTL por clave, poda por score) |
 | **Escalabilidad horizontal** | Posible (réplicas de lectura, particionamiento, Citus), pero compleja para escrituras | Alta: shards por slot de hash, con escalamiento en línea |
@@ -299,7 +301,7 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 
 Eso es exactamente lo que PostgreSQL garantiza de forma declarativa. Redis no podría hacerlo: no tiene FK, CHECK ni durabilidad transaccional.
 
-**2. Responder "¿qué tan raro es esto?" en milisegundos.** Exige **estado precalculado por cliente, actualizado de forma incremental y leído en tiempo constante**. Hacerlo en PostgreSQL significaría agregar el historial en cada evento: 100 ms para los clientes más riesgosos, con un costo que crece con el tiempo y compite con las transacciones del núcleo. Redis lo resuelve con estructuras nativas en menos de 1 ms.
+**2. Responder "¿qué tan raro es esto?" en milisegundos.** Exige **estado precalculado por cliente, actualizado de forma incremental y leído en tiempo constante**. Hacerlo en PostgreSQL significaría agregar el historial en cada evento: 257 ms para los clientes más riesgosos, con un costo que crece con el tiempo y compite con las transacciones del núcleo. Redis lo resuelve con estructuras nativas en menos de 1 ms.
 
 **Reemplazar una por otra sería un error en cualquier dirección:**
 
@@ -338,6 +340,6 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 ## 8.3 Conclusiones
 
 1. **El caso de IA sale de los datos, no de una moda.** La Parte 1 mostró que el principal motivo de rechazo es el cumplimiento y que los mayores clientes fraccionan sus operaciones. Detectarlo a tiempo es el problema de negocio con más impacto.
-2. **El problema no es de volumen sino de latencia y patrón de acceso:** 18 500 eventos por día y un estado en línea de ≈ 150 MB. Lo que PostgreSQL no hace bien es mantener ventanas por cliente con costo constante; con él, las features cuestan de 5,6 a 100 ms según el historial.
+2. **El problema no es de volumen sino de latencia y patrón de acceso:** 18 500 eventos por día y un estado en línea de ≈ 150 MB. Lo que PostgreSQL no hace bien es mantener ventanas por cliente con costo constante; con él, las features cuestan de 6 a 257 ms según el historial.
 3. **Redis es la tecnología adecuada** porque sus estructuras (sorted sets, hashes, sets y TTL) son las mismas operaciones que piden las features. Con Kinesis (CDC) y S3 completa un ciclo de detección, decisión humana y reentrenamiento.
 4. **PostgreSQL no se reemplaza, se protege:** sigue siendo el sistema de registro, con su integridad, sus índices y sus consultas de negocio, mientras la carga de tiempo real se resuelve fuera de él. Eso es Polyglot Persistence aplicada con criterio.
