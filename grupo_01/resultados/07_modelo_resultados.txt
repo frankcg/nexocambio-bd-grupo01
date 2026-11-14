@@ -27,3 +27,8 @@ codigo_cliente  score_riesgo perfil_anomalia  operaciones_30d  monto_promedio_us
     CLI-WV60VK         0.690         pitufeo               10                 9392.17                            0          0.500                   1.000                     0.0
     CLI-TXJZX6         0.688        nocturno                0                     NaN                          628          0.000                     NaN                     0.0
     CLI-IUQVKE         0.688         pitufeo               50                 7415.03                            1          0.205                   0.762                     0.0
+
+=========== Verificación en Databricks Free Edition (serverless) ===========
+Notebook importado y ejecutado con ruta_csv = /Volumes/workspace/default/nexocambio/features_clientes.csv.
+Resultado idéntico al de esta ejecución local: ROC AUC 0.896 · Average precision 0.552 ·
+top 2 % = 709 revisados, 329 detectados (46.4 % / 66.9 %) · por perfil y top 10 iguales.

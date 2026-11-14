@@ -22,8 +22,9 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   `datos/features_clientes.csv` → `notebooks/modelo_anomalias.py` (Isolation Forest, semilla 42).
   Top 2 % (709 clientes): 329 de 492 anomalías, precisión 46,4 %, recall 66,9 %, ROC AUC 0,896.
   Por perfil: pitufeo 100 %, nocturno 92,3 %, multicuenta 69,7 %, pico 1,6 % (la feature
-  `variacion_monto_30d` no lo separa). Cifras de la ejecución local (scikit-learn 1.9.1);
-  **falta ejecutarlo en Databricks Free Edition** y confirmar que coincide.
+  `variacion_monto_30d` no lo separa). Ejecutado localmente (scikit-learn 1.9.1) y en
+  **Databricks Free Edition** (serverless, CSV en `/Volumes/workspace/default/nexocambio/`):
+  cifras idénticas. Cuenta de Databricks: la del equipo (correo UTEC de Frank).
 - Entorno Python en `.venv/` (Python 3.14): confluent-kafka, redis, psycopg, pandas, scikit-learn.
   Confluent Cloud: cluster **Basic** en AWS us-east-2; credenciales en `.env` (no versionado).
 - **Presentación final** (máx. ≈ 11 diapositivas, con demo). Demo propuesta: seguir a

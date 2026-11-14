@@ -302,7 +302,7 @@ Además, el modelo obtuvo un ROC AUC de 0,896.
 - **El pico de montos casi no se detecta, y eso confirma la arquitectura.** Con las features batch, el perfil "pico" se parece demasiado al de un cliente normal: la mediana de `variacion_monto_30d` es 1,01, igual que la de los clientes normales. Un pico se reconoce comparando **la operación actual** con el perfil del cliente, y eso es justo lo que hace el scoring en línea con Redis (paso 2 del recorrido): suma la operación actual a las features del cliente y agrega `operaciones_24h`.
 - **El modelo prioriza, no decide.** El 46,4 % de precisión significa que más de la mitad de los clientes señalados son normales. Por eso la decisión final sigue siendo del analista, y esas decisiones son las etiquetas con las que se entrenaría el modelo supervisado de la fase 3.
 
-Las cifras salen de `resultados/07_modelo_resultados.txt`. El mismo notebook se ejecuta en Databricks: lee el CSV desde un *Volume*, registra el modelo en MLflow y guarda los scores como tabla Delta.
+Las cifras salen de `resultados/07_modelo_resultados.txt`. El mismo notebook se ejecutó en **Databricks Free Edition** (cómputo *serverless*, leyendo el CSV desde un *Volume* de Unity Catalog) y dio exactamente las mismas cifras. Allí además registra el modelo en MLflow y guarda los scores como tabla Delta.
 
 # 6. Comparación entre PostgreSQL y Redis
 
