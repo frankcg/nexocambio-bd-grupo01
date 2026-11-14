@@ -16,14 +16,13 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   activos). Tecnología: Redis como feature store en línea, Kinesis (CDC desde PostgreSQL) y
   Data Lake S3. Falta revisarlo contra el enunciado y regenerar sus PDF.
 
-## Pendientes (al 29/10/2026)
-- **¿Hay que subirlo a GitHub?** Sin resolver: el enunciado no está en el repositorio y nada
-  aquí lo menciona. Revisar el enunciado o la rúbrica en la plataforma del curso (o pegarlo aquí).
-  El repo **no tiene remoto** configurado. Si se sube: el repositorio público o privado
-  (dar acceso al docente), `datos/completo/` queda fuera (`*.csv` ya está en `.gitignore`;
-  GitHub rechaza archivos de más de 100 MB) y se crea con `gh`.
-- Cambios sin commitear en `grupo_01/informe.docx` e `informe.pdf` (regenerados): revisar y
-  commitear.
+## Pendientes (al 14/11/2026)
+- Enunciado de la Parte 1 en `docs/enunciados/parte1.md`. El informe cubre todos sus puntos
+  (revisado el 14/11/2026). Falta el enunciado de la Parte 2.
+- **Subir a GitHub** (lo pide el equipo): crear el repositorio y hacer push. El repo aún **no
+  tiene remoto**. `gh` está autenticado como `frankcg` (keyring), pero la variable `GITHUB_TOKEN`
+  tiene un token inválido que lo bloquea: quitarla o ejecutar `gh` sin ella. `datos/completo/`
+  queda fuera (`*.csv` ya está en `.gitignore`; GitHub rechaza archivos de más de 100 MB).
 - `grupo_01.rar` en la raíz (sin seguimiento): paquete para la entrega; no commitearlo.
 
 ## Estructura
@@ -36,7 +35,8 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   `estilos.css`) · `docs/fuentes/parte2/`: fuentes de la Parte 2.
 - `generador/generar_pdfs.py`: Markdown → PDF (Edge headless, marked + Mermaid desde CDN).
 - `generador/word/`: Markdown → `informe.docx` (Node, librerías `docx` y `marked`).
-- `entrega_2/`: PDF del borrador de la Parte 2.
+- `entrega_2/`: PDF del borrador de la Parte 2 (`informe_final`, `modelo_nosql`, `arquitectura`).
+- `docs/enunciados/`: enunciados del curso.
 
 ## Comandos
 PostgreSQL 18 local en el **puerto 5433**, base `nexocambio`, esquema `nexocambio`. La
