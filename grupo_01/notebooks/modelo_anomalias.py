@@ -60,7 +60,7 @@ X = df[FEATURES].copy()
 X["monto_promedio_usd_90d"] = X["monto_promedio_usd_90d"].fillna(0)
 X["ratio_rechazo"] = X["ratio_rechazo"].fillna(0)
 X["variacion_monto_30d"] = X["variacion_monto_30d"].fillna(1)
-X = X.fillna(0)
+X = X.fillna(0).astype("float64")  # MLflow pide decimales para admitir nulos al predecir
 
 y = df["perfil_anomalia"].notna().astype(int)  # solo para evaluar
 print(f"Clientes: {len(df):,} · con anomalía inyectada: {y.sum()} ({y.mean():.2%})")
@@ -153,7 +153,10 @@ if mlflow is not None:
     with mlflow.start_run(run_name="isolation_forest"):
         mlflow.log_params({**PARAMS, "features": ",".join(FEATURES), "revision_pct": REVISION_PCT})
         mlflow.log_metrics({m: float(v) for m, v in metricas.items()})
-        mlflow.sklearn.log_model(modelo, "modelo", input_example=X.head(5))
+        try:  # MLflow 3 (Databricks) usa name=; MLflow 2, artifact_path=
+            mlflow.sklearn.log_model(modelo, name="modelo", input_example=X.head(5))
+        except TypeError:
+            mlflow.sklearn.log_model(modelo, artifact_path="modelo", input_example=X.head(5))
     print("Run registrado en MLflow.")
 
 if EN_DATABRICKS:
