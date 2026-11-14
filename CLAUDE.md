@@ -11,14 +11,19 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
 ## Estado
 - **Parte 1 (entregable 1): terminada.** Análisis de negocio, modelo ER (15 entidades, 3FN),
   implementación, 10 consultas, 8 features y optimización con EXPLAIN / EXPLAIN ANALYZE.
-- **Parte 2 (entregable 2): borrador** en `entrega_2/` (fuentes en `docs/fuentes/parte2/`).
-  Caso de IA: detección de operaciones inusuales en tiempo real (prevención de lavado de
-  activos). Tecnología: Redis como feature store en línea, Kinesis (CDC desde PostgreSQL) y
-  Data Lake S3. Falta revisarlo contra el enunciado y regenerar sus PDF.
+- **Parte 2 (entregable 2): casi terminada.** Sus 3 PDF van también en `grupo_01/` (fuentes en
+  `docs/fuentes/parte2/`). Caso de IA: detección de operaciones inusuales en tiempo real
+  (prevención de lavado de activos). Tecnología: Redis como feature store en línea, Kinesis
+  (CDC desde PostgreSQL) y Data Lake S3. Revisada contra el enunciado el 14/11/2026: cubre todo.
 
 ## Pendientes (al 14/11/2026)
-- Enunciado de la Parte 1 en `docs/enunciados/parte1.md`. El informe cubre todos sus puntos
-  (revisado el 14/11/2026). Falta el enunciado de la Parte 2.
+- Enunciados en `docs/enunciados/` (`parte1.md`, `parte2.md`).
+- **Parte 2 · tiempos de las features:** el informe dice 5,6 ms / 100,4 ms / 3,6 s (medición
+  anterior, caché caliente). Al remedir el 14/11/2026 con `06_parte2_caracterizacion.sql` salió
+  ≈ 6 ms / ≈ 257 ms / ≈ 5,5 s (mediana de 5), pero con solo 1 GB de RAM libre (Chrome, Zoom…),
+  así que PostgreSQL leía del disco. Remedir con la máquina descargada (5 corridas, mediana) y
+  actualizar `informe_final.md` (secciones 2.1, 6, 7 y 8.3) y `resultados/06_parte2_resultados.txt`.
+  El resto de cifras de la caracterización ya coincide con esa medición.
 - **GitHub:** subido el 14/11/2026 a https://github.com/frankcg/nexocambio-bd-grupo01 (público,
   rama `main`, remoto `origin`). `gh` y `git push` usan la sesión de `frankcg` (keyring), pero la
   variable `GITHUB_TOKEN` tiene un token inválido que los bloquea: en PowerShell ejecutar antes
@@ -35,7 +40,8 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   `estilos.css`) · `docs/fuentes/parte2/`: fuentes de la Parte 2.
 - `generador/generar_pdfs.py`: Markdown → PDF (Edge headless, marked + Mermaid desde CDN).
 - `generador/word/`: Markdown → `informe.docx` (Node, librerías `docx` y `marked`).
-- `entrega_2/`: PDF del borrador de la Parte 2 (`informe_final`, `modelo_nosql`, `arquitectura`).
+- Parte 2 en `grupo_01/`: `informe_final.pdf`, `arquitectura.pdf`, `modelo_nosql.pdf` y
+  `sql/06_parte2_caracterizacion.sql` (mide las cifras de la caracterización).
 - `docs/enunciados/`: enunciados del curso.
 
 ## Comandos
@@ -80,4 +86,8 @@ node generador/word/generar_word.js                          # regenera informe.
   compuesto); O2 cola back-office 263 → 0,4 ms (índice parcial); O3 embudo mensual
   485 → 177 ms (BRIN + reescritura). Los tiempos sin índice varían mucho entre corridas.
 - Features en PostgreSQL (para la Parte 2): 5,6 ms un cliente típico, 100 ms el cliente con
-  más historial (CLI-ZYCHEZ, 2 809 operaciones), 3,6 s todos los clientes.
+  más historial (CLI-ZYCHEZ, 2 809 operaciones), 3,6 s todos los clientes (por confirmar, ver
+  Pendientes).
+- Caracterización (septiembre de 2026, sin contar el estado inicial del historial): 18 503
+  eventos por día, picos de 2 532 por hora y 73 por minuto; 283 → 2 632 operaciones por día
+  (enero 2025 → septiembre 2026, 9,3 veces); 23 697 clientes activos en 90 días.

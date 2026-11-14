@@ -4,9 +4,9 @@
 <div class="subtitulo">Parte 2 · Arquitectura de datos para Ciencia de Datos e Inteligencia Artificial: detección de operaciones inusuales en tiempo real</div>
 <div class="datos">
 <p><strong>Grupo 1</strong></p>
-<p>Integrantes: [Nombre y apellido – código] · [Nombre y apellido – código] · [Nombre y apellido – código]</p>
+<p>Integrantes: Frank Laura · Josue Campos · Mauricio Vallejos</p>
 <p>Docente: Luis Chicoma</p>
-<p>Lima, octubre de 2026</p>
+<p>Lima, noviembre de 2026</p>
 </div>
 </div>
 
@@ -63,7 +63,7 @@ Las cifras salen de los datos de la Parte 1 (septiembre de 2026, el último mes 
 |---|---|---|
 | **Volumen de información** | 8,8 millones de filas y 1,6 GB en 21 meses. El estado "caliente" necesario para el scoring es mucho menor: unos 23 700 clientes activos en 90 días, con unas 12 operaciones cada uno en 120 días. | No es un problema de *big data* por volumen: el estado en línea cabe en memoria (≈ 150 MB). El histórico completo sí conviene llevarlo a un almacenamiento analítico barato. |
 | **Frecuencia de generación** | ≈ 18 500 eventos de negocio por día (cotizaciones, operaciones, comprobantes y cambios de estado). Pico de 2 532 por hora y de **73 por minuto**. | Flujo continuo de eventos pequeños, ideal para *streaming*. |
-| **Crecimiento** | Las operaciones diarias pasaron de 278 (enero de 2025) a 2 632 (septiembre de 2026): **9,5 veces en 20 meses**. | El diseño debe aguantar al menos 10 veces más sin rediseño: ≈ 185 000 eventos por día y picos de unos 12 por segundo. |
+| **Crecimiento** | Las operaciones diarias pasaron de 283 (enero de 2025) a 2 632 (septiembre de 2026): **9,3 veces en 20 meses**. | El diseño debe aguantar al menos 10 veces más sin rediseño: ≈ 185 000 eventos por día y picos de unos 12 por segundo. |
 | **Tipos de datos** | Eventos estructurados (JSON), series de tiempo (ventanas por cliente, tasas cada 5 min), relaciones tipo grafo (cuentas que comparten varios clientes) y archivos (comprobantes en S3). | Las estructuras que necesita el scoring (contadores por ventana, conjuntos y rankings) no son tablas normalizadas. |
 | **Necesidad de tiempo real** | El puntaje debe existir **antes** de que el analista abra la operación. La mediana de validación es de 15 a 33 minutos (C4), pero la cola se refresca continuamente y el riesgo debe estar listo de inmediato. | Scoring síncrono al cargar el comprobante, y ventanas actualizadas en segundos. |
 | **Latencia esperada** | Lectura de features ≤ 5 ms (p99); scoring completo ≤ 60 ms adicionales a la API. | Se necesita una lectura por clave con costo **independiente del historial**. |

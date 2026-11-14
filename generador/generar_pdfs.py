@@ -2,7 +2,7 @@
 NexoCambio · Genera los PDF de los entregables a partir de docs/fuentes/.
 
     docs/fuentes/*.md         → grupo_01/   (Parte 1)
-    docs/fuentes/parte2/*.md  → entrega_2/  (Parte 2, segundo entregable)
+    docs/fuentes/parte2/*.md  → grupo_01/   (Parte 2)
 
 Cada Markdown se envuelve en un HTML que lo renderiza en el navegador (marked para el
 texto, Mermaid para los diagramas) y se imprime a PDF con Edge o Chrome en modo headless.
@@ -21,7 +21,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 FUENTES = RAIZ / "docs" / "fuentes"
-DESTINOS = [(FUENTES, RAIZ / "grupo_01"), (FUENTES / "parte2", RAIZ / "entrega_2")]
+DESTINOS = [(FUENTES, RAIZ / "grupo_01"), (FUENTES / "parte2", RAIZ / "grupo_01")]
 TEMPORAL = RAIZ / "docs" / "fuentes" / "_html"  # HTML intermedio (no se versiona)
 NAVEGADORES = [Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
                Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),

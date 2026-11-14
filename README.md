@@ -14,12 +14,19 @@ curso de Cloud Computing. Autorizado por el docente, con datos sintéticos.
 | `datos/dataset.csv` | Muestra plana de ~10 mil operaciones |
 | `generador/generar_datos.py` | Genera los datos completos que carga `03_data.sql` (solo biblioteca estándar de Python) |
 | `pruebas/pruebas_restricciones.sql` | 29 casos inválidos que las restricciones deben rechazar (con ROLLBACK) |
-| `resultados/` | Salidas completas de `04_queries.sql` y `05_indexes.sql` |
+| `resultados/` | Salidas completas de `04_queries.sql`, `05_indexes.sql` y `06_parte2_caracterizacion.sql` |
 
-## Entregable 2 (`entrega_2/`, borrador)
-Borrador de la Parte 2 (arquitectura para IA: detección de operaciones inusuales con Redis,
-Kinesis y Data Lake). Se retomará para el segundo entregable; sus fuentes están en
-`docs/fuentes/parte2/`.
+## Entregable 2 (también en `grupo_01/`)
+Arquitectura para IA: detección de operaciones inusuales en tiempo real con Redis, Kinesis y
+Data Lake. Fuentes en `docs/fuentes/parte2/`.
+| Archivo | Contenido |
+|---|---|
+| `informe_final.pdf` | Caso de IA, caracterización, selección de tecnología, comparación y Polyglot Persistence |
+| `arquitectura.pdf` | Diagrama de arquitectura, flujos, secuencia de scoring y presupuesto de latencia |
+| `modelo_nosql.pdf` | Diseño de claves en Redis, equivalencia con las features SQL y eventos de Kinesis |
+| `sql/06_parte2_caracterizacion.sql` | Mide las cifras de la caracterización del problema |
+
+Los enunciados de ambas partes están en `docs/enunciados/`.
 
 ## Otras carpetas
 - `docs/fuentes/`: fuentes Markdown de los documentos.
@@ -41,6 +48,7 @@ python generador/generar_datos.py                                            # ~
 psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/03_data.sql      # ~11 min
 psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/04_queries.sql   # ~1 min
 psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/05_indexes.sql   # ejecutar dos veces
+psql -h localhost -p 5433 -U postgres -d nexocambio -f sql/06_parte2_caracterizacion.sql
 ```
 Volumen (enero 2025 – octubre 2026): 50 mil clientes, 225 mil cuentas, 1,1 millones de tasas,
 2 millones de cotizaciones, 918 mil operaciones, 959 mil comprobantes y 3,5 millones de
