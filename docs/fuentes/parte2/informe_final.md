@@ -99,7 +99,7 @@ Lo que falta es un almacenamiento donde el estado de cada cliente se **mantenga 
 
 ## 3.1 Tecnología elegida: Redis (Amazon ElastiCache) como feature store en línea
 
-Se complementa con **Apache Kafka en Confluent Cloud** como bus de eventos (alimentado por CDC desde PostgreSQL con el conector Debezium) y **Amazon S3 + Parquet** como Data Lake para entrenar.
+Se complementa con **Apache Kafka en Confluent Cloud** como bus de eventos (alimentado por CDC desde PostgreSQL con el conector Debezium) y **Databricks** sobre un Data Lake en S3 con **Delta Lake**, para la analítica histórica y el entrenamiento del modelo con **MLflow**.
 
 | Pregunta | Respuesta |
 |---|---|
@@ -117,7 +117,8 @@ Se complementa con **Apache Kafka en Confluent Cloud** como bus de eventos (alim
 | **Amazon DynamoDB** (ya se usa en el proyecto de Cloud) | Clave–valor serverless, latencia de un dígito en ms, alta durabilidad | Es una alternativa válida y más barata con poco tráfico. Pero no tiene *sorted sets* ni conjuntos con cardinalidad, así que las ventanas deslizantes y el ranking de riesgo exigen más lógica en la aplicación y más lecturas. Se deja como plan B si se prioriza lo serverless. |
 | **TimescaleDB / InfluxDB** | Series de tiempo con agregados continuos | Resuelve bien las ventanas, pero agrega otra base de disco con latencia de milisegundos. Las tasas de referencia ya se resuelven en PostgreSQL con índices BRIN (Parte 1, O3). |
 | **Neo4j** | Grafos: redes de cuentas compartidas y "mulas" | Muy útil para *investigar* redes en fase 2. Para el scoring en línea basta el `SCARD` sobre el set de la cuenta. |
-| **Amazon Kinesis** en lugar de Kafka | Streaming administrado y nativo de AWS, integrado con Lambda y Firehose | Equivalente en función y algo más barato con poco tráfico. Se eligió **Kafka en Confluent Cloud** porque también es administrado (no se operan brokers) y ofrece **conectores administrados** que resuelven dos piezas de la arquitectura: Debezium para el CDC desde PostgreSQL y S3 Sink para el Data Lake. Además tiene Schema Registry para el contrato de eventos, retención configurable con relectura por *offset* y es la plataforma de streaming que se trabaja en el curso. |
+| **Amazon Kinesis** en lugar de Kafka | Streaming administrado y nativo de AWS, integrado con Lambda y Firehose | Equivalente en función y algo más barato con poco tráfico. Se eligió **Kafka en Confluent Cloud** porque también es administrado (no se operan brokers) y ofrece un **conector administrado de Debezium** para el CDC desde PostgreSQL, y Databricks lee sus topics directamente con Structured Streaming. Además tiene Schema Registry para el contrato de eventos, retención configurable con relectura por *offset* y es la plataforma de streaming que se trabaja en el curso. |
+| **Athena/Glue + SageMaker** en lugar de Databricks | Servicios nativos de AWS para consultar el Data Lake y entrenar modelos | Funcionan, pero son tres servicios que se integran por separado. **Databricks** reúne en una sola plataforma la ingesta desde Kafka, las tablas Delta (con transacciones y versiones sobre S3), Spark SQL para preparar las features y MLflow para versionar los modelos. Además es la plataforma de analítica que se trabaja en el curso. Su limitación es el costo del cómputo, que se acota con clusters que se apagan solos y jobs nocturnos. |
 | **SageMaker Feature Store** | Feature store administrado (en línea y fuera de línea) | Buena opción a futuro. Hoy no ofrece las ventanas deslizantes ni el ranking de cola que necesita el caso, y su almacenamiento en línea es más caro por lectura. |
 
 # 4. Modelo de datos NoSQL
@@ -184,7 +185,7 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 <text x="627" y="82" text-anchor="middle">DATOS TRANSACCIONALES</text>
 <text x="895" y="82" text-anchor="middle">PROCESAMIENTO EN TIEMPO REAL</text>
 <text x="1207" y="82" text-anchor="middle">FEATURE STORE EN LÍNEA</text>
-<text x="40" y="522">ANALÍTICA Y MACHINE LEARNING (BATCH)</text>
+<text x="40" y="522">ANALÍTICA Y MACHINE LEARNING (BATCH) · DATABRICKS</text>
 </g>
 <g stroke="#44505c" stroke-width="1.6" fill="none" marker-end="url(#f)">
 <path d="M190,125 L255,122"/>
@@ -253,10 +254,10 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 <text x="895" y="181" font-weight="700">Apache Kafka</text><text x="895" y="198" font-size="11.5" fill="#5a6675">Confluent Cloud · clave id_cliente</text>
 <text x="895" y="261" font-weight="600">Procesador de features</text><text x="895" y="278" font-size="11.5" fill="#5a6675">consumer group · incremental</text>
 <text x="1220" y="282" font-weight="700" font-size="15">Redis (ElastiCache)</text><text x="1220" y="302" font-size="12" fill="#5a6675">feature store en línea</text><text x="1220" y="320" font-size="11.5" fill="#5a6675">perfil · ventanas deslizantes</text><text x="1220" y="336" font-size="11.5" fill="#5a6675">riesgo por operación · cola</text><text x="1220" y="352" font-size="11.5" fill="#5a6675">TTL · datos derivados</text>
-<text x="875" y="584" font-weight="600">Conector S3 Sink</text><text x="875" y="600" font-size="11.5" fill="#5a6675">Confluent · a Parquet</text>
-<text x="650" y="585" font-weight="700">Data Lake S3</text><text x="650" y="602" font-size="11.5" fill="#5a6675">raw / curated</text>
-<text x="415" y="584" font-weight="600">Athena / Glue</text><text x="415" y="600" font-size="11.5" fill="#5a6675">features históricas</text>
-<text x="175" y="580" font-weight="700">SageMaker Pipelines</text><text x="175" y="597" font-size="11.5" fill="#5a6675">entrenamiento · validación</text><text x="175" y="611" font-size="11.5" fill="#5a6675">registro de modelos</text>
+<text x="875" y="584" font-weight="600">Structured Streaming</text><text x="875" y="600" font-size="11.5" fill="#5a6675">Kafka → Delta (bronze)</text>
+<text x="650" y="585" font-weight="700">Delta Lake en S3</text><text x="650" y="602" font-size="11.5" fill="#5a6675">bronze · silver · gold</text>
+<text x="415" y="584" font-weight="600">Spark SQL · notebooks</text><text x="415" y="600" font-size="11.5" fill="#5a6675">features históricas</text>
+<text x="175" y="580" font-weight="700">MLflow</text><text x="175" y="597" font-size="11.5" fill="#5a6675">entrenamiento · validación</text><text x="175" y="611" font-size="11.5" fill="#5a6675">registro de modelos</text>
 </g>
 </svg></div>
 
@@ -267,8 +268,41 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 3. **Eventos.** El **CDC** (conector Debezium de Confluent, que lee la replicación lógica de PostgreSQL) publica cada cambio confirmado en un topic de **Kafka**, con `id_cliente` como clave. La API no escribe en dos bases, así que no puede haber una operación en Redis que no exista en PostgreSQL.
 4. **Actualización incremental.** El **procesador de features**, un *consumer group* de Kafka, consume los eventos en orden por cliente y actualiza los contadores y las ventanas en Redis con un script Lua atómico.
 5. **Back-office.** Ve la cola ordenada por riesgo, con los motivos del modelo. La decisión se escribe en PostgreSQL (`historial_estado`) y, por CDC, se convierte en una **etiqueta** para el siguiente entrenamiento.
-6. **Histórico y entrenamiento.** El **conector S3 Sink** de Confluent guarda todos los eventos en el **Data Lake S3** en Parquet. Cada noche se exporta también `v_features_cliente`. **Athena/Glue** preparan el conjunto de entrenamiento y **SageMaker Pipelines** entrena, valida (precisión en el top-k de la cola, recall de ROS confirmados) y registra el modelo, que se despliega en el servicio de scoring.
+6. **Histórico y entrenamiento.** **Databricks** lee los topics de Kafka con Structured Streaming y guarda todos los eventos en tablas **Delta** sobre S3 (capa *bronze*). Cada noche recibe también `v_features_cliente`. Con **Spark SQL** se prepara el conjunto de entrenamiento (capas *silver* y *gold*) y **MLflow** registra cada entrenamiento con sus parámetros y métricas (precisión en el top-k de la cola, recall de ROS confirmados). La versión aprobada se despliega en el servicio de scoring.
 7. **Perfil batch.** Cada noche, el mismo `v_features_cliente` (5,5 s para todos los clientes) reescribe `cli:{id}:perfil` en Redis.
+
+## 5.1 Prueba del modelo en Databricks
+
+Para comprobar que el caso de IA es viable, se entrenó el modelo de la fase 1 con datos reales del proyecto. Se exportó `v_features_cliente` (`sql/07_exportar_features.sql`, 35 438 clientes) y el notebook `notebooks/modelo_anomalias.py` entrenó un **Isolation Forest** con las 8 features. El modelo es **no supervisado**: nunca vio las etiquetas. Las 492 etiquetas de anomalías inyectadas (1,39 % de los clientes) se usaron solo para medir el resultado.
+
+La pregunta de negocio es: **si el back-office revisa solo el 2 % de clientes con mayor score (709), ¿cuántos casos inusuales encuentra?** Se compara con una regla simple de una sola feature, como las de la Parte 1:
+
+<div class="metricas">
+
+| Método | Clientes revisados | Casos encontrados | Precisión | Recall |
+|---|---|---|---|---|
+| Revisión al azar (referencia) | 709 | ≈ 10 | 1,4 % | 2,0 % |
+| Regla: `ratio_cerca_umbral_90d` ≥ 0,5 | 173 | 160 | 92,5 % | 32,5 % |
+| **Isolation Forest (top 2 %)** | **709** | **329** | **46,4 %** | **66,9 %** |
+
+</div>
+
+| Perfil inusual | Clientes | Detecta el modelo | Detecta la regla |
+|---|---|---|---|
+| Fraccionamiento (pitufeo) | 160 | 100 % | 100 % |
+| Actividad nocturna | 91 | 92,3 % | 0 % |
+| Multicuenta (cuentas de terceros) | 119 | 69,7 % | 0 % |
+| Pico de montos | 122 | 1,6 % | 0 % |
+
+Además, el modelo obtuvo un ROC AUC de 0,896.
+
+**Interpretación.**
+
+- **Revisando el 2 % de los clientes, el modelo encuentra dos de cada tres casos inusuales**, 33 veces más que una revisión al azar. La regla es muy precisa, pero solo ve el fraccionamiento; el modelo detecta tres tipos de comportamiento sin que nadie le diga qué buscar. Es la evidencia práctica de que hace falta un modelo multivariable.
+- **El pico de montos casi no se detecta, y eso confirma la arquitectura.** Con las features batch, el perfil "pico" se parece demasiado al de un cliente normal: la mediana de `variacion_monto_30d` es 1,01, igual que la de los clientes normales. Un pico se reconoce comparando **la operación actual** con el perfil del cliente, y eso es justo lo que hace el scoring en línea con Redis (paso 2 del recorrido): suma la operación actual a las features del cliente y agrega `operaciones_24h`.
+- **El modelo prioriza, no decide.** El 46,4 % de precisión significa que más de la mitad de los clientes señalados son normales. Por eso la decisión final sigue siendo del analista, y esas decisiones son las etiquetas con las que se entrenaría el modelo supervisado de la fase 3.
+
+Las cifras salen de `resultados/07_modelo_resultados.txt`. El mismo notebook se ejecuta en Databricks: lee el CSV desde un *Volume*, registra el modelo en MLflow y guarda los scores como tabla Delta.
 
 # 6. Comparación entre PostgreSQL y Redis
 
@@ -322,9 +356,9 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 
 | Fase | Alcance | Valor |
 |---|---|---|
-| 1 · Batch | `v_features_cliente` nocturna → modelo Isolation Forest → ranking diario de clientes para cumplimiento | Detecta el fraccionamiento de C6 sin infraestructura nueva |
+| 1 · Batch | `v_features_cliente` nocturna → Isolation Forest en Databricks → ranking diario de clientes para cumplimiento | Ya probado (sección 5.1): con el 2 % de revisión encuentra el 66,9 % de los casos inusuales |
 | 2 · Tiempo real | CDC → Kafka → Redis; scoring síncrono al cargar el comprobante; cola por riesgo | Prioriza la revisión operación por operación |
-| 3 · Aprendizaje continuo | Data Lake + SageMaker con etiquetas del back-office; monitoreo de deriva de features | El modelo mejora con cada decisión |
+| 3 · Aprendizaje continuo | Delta Lake + MLflow en Databricks; gradient boosting con las etiquetas del back-office; monitoreo de deriva de features | El modelo mejora con cada decisión |
 | 4 · Investigación | Grafo de cuentas compartidas (Neo4j) para redes de "mulas" | Análisis de redes, no solo de clientes individuales |
 
 ## 8.2 Riesgos y mitigaciones
@@ -341,5 +375,5 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 
 1. **El caso de IA sale de los datos, no de una moda.** La Parte 1 mostró que el principal motivo de rechazo es el cumplimiento y que los mayores clientes fraccionan sus operaciones. Detectarlo a tiempo es el problema de negocio con más impacto.
 2. **El problema no es de volumen sino de latencia y patrón de acceso:** 18 500 eventos por día y un estado en línea de ≈ 150 MB. Lo que PostgreSQL no hace bien es mantener ventanas por cliente con costo constante; con él, las features cuestan de 6 a 257 ms según el historial.
-3. **Redis es la tecnología adecuada** porque sus estructuras (sorted sets, hashes, sets y TTL) son las mismas operaciones que piden las features. Con Kafka en Confluent Cloud (CDC) y S3 completa un ciclo de detección, decisión humana y reentrenamiento.
+3. **Redis es la tecnología adecuada** porque sus estructuras (sorted sets, hashes, sets y TTL) son las mismas operaciones que piden las features. Con Kafka en Confluent Cloud (CDC) y Databricks (Delta Lake y MLflow) completa un ciclo de detección, decisión humana y reentrenamiento. La prueba del modelo lo respalda: revisando el 2 % de los clientes encuentra el 66,9 % de los casos inusuales.
 4. **PostgreSQL no se reemplaza, se protege:** sigue siendo el sistema de registro, con su integridad, sus índices y sus consultas de negocio, mientras la carga de tiempo real se resuelve fuera de él. Eso es Polyglot Persistence aplicada con criterio.

@@ -1,7 +1,7 @@
 <!-- pagina: A4 landscape -->
 # NexoCambio · Arquitectura de datos para la detección de operaciones inusuales
 
-Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transaccional) + **Redis** (feature store en línea) + **Kafka en Confluent Cloud** (eventos) + **Data Lake S3** (entrenamiento)
+Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transaccional) + **Redis** (feature store en línea) + **Kafka en Confluent Cloud** (eventos) + **Databricks** sobre Delta Lake en S3 (analítica y entrenamiento)
 
 <div class="diagrama"><svg viewBox="0 20 1400 640" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="13">
 <defs><marker id="f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#44505c"/></marker></defs>
@@ -19,7 +19,7 @@ Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transacc
 <text x="627" y="82" text-anchor="middle">DATOS TRANSACCIONALES</text>
 <text x="895" y="82" text-anchor="middle">PROCESAMIENTO EN TIEMPO REAL</text>
 <text x="1207" y="82" text-anchor="middle">FEATURE STORE EN LÍNEA</text>
-<text x="40" y="522">ANALÍTICA Y MACHINE LEARNING (BATCH)</text>
+<text x="40" y="522">ANALÍTICA Y MACHINE LEARNING (BATCH) · DATABRICKS</text>
 </g>
 <g stroke="#44505c" stroke-width="1.6" fill="none" marker-end="url(#f)">
 <path d="M190,125 L255,122"/>
@@ -88,10 +88,10 @@ Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transacc
 <text x="895" y="181" font-weight="700">Apache Kafka</text><text x="895" y="198" font-size="11.5" fill="#5a6675">Confluent Cloud · clave id_cliente</text>
 <text x="895" y="261" font-weight="600">Procesador de features</text><text x="895" y="278" font-size="11.5" fill="#5a6675">consumer group · incremental</text>
 <text x="1220" y="282" font-weight="700" font-size="15">Redis (ElastiCache)</text><text x="1220" y="302" font-size="12" fill="#5a6675">feature store en línea</text><text x="1220" y="320" font-size="11.5" fill="#5a6675">perfil · ventanas deslizantes</text><text x="1220" y="336" font-size="11.5" fill="#5a6675">riesgo por operación · cola</text><text x="1220" y="352" font-size="11.5" fill="#5a6675">TTL · datos derivados</text>
-<text x="875" y="584" font-weight="600">Conector S3 Sink</text><text x="875" y="600" font-size="11.5" fill="#5a6675">Confluent · a Parquet</text>
-<text x="650" y="585" font-weight="700">Data Lake S3</text><text x="650" y="602" font-size="11.5" fill="#5a6675">raw / curated</text>
-<text x="415" y="584" font-weight="600">Athena / Glue</text><text x="415" y="600" font-size="11.5" fill="#5a6675">features históricas</text>
-<text x="175" y="580" font-weight="700">SageMaker Pipelines</text><text x="175" y="597" font-size="11.5" fill="#5a6675">entrenamiento · validación</text><text x="175" y="611" font-size="11.5" fill="#5a6675">registro de modelos</text>
+<text x="875" y="584" font-weight="600">Structured Streaming</text><text x="875" y="600" font-size="11.5" fill="#5a6675">Kafka → Delta (bronze)</text>
+<text x="650" y="585" font-weight="700">Delta Lake en S3</text><text x="650" y="602" font-size="11.5" fill="#5a6675">bronze · silver · gold</text>
+<text x="415" y="584" font-weight="600">Spark SQL · notebooks</text><text x="415" y="600" font-size="11.5" fill="#5a6675">features históricas</text>
+<text x="175" y="580" font-weight="700">MLflow</text><text x="175" y="597" font-size="11.5" fill="#5a6675">entrenamiento · validación</text><text x="175" y="611" font-size="11.5" fill="#5a6675">registro de modelos</text>
 </g>
 </svg></div>
 
@@ -100,8 +100,8 @@ Grupo 1 · Curso de Base de Datos · Parte 2 · **PostgreSQL** (núcleo transacc
 | 1 | Los servicios registran clientes, cotizaciones, operaciones y decisiones | **PostgreSQL** | Integridad referencial, máquina de estados con CHECK, transacciones ACID: es el *sistema de registro*. |
 | 2–4 | Al cargar el comprobante, la API pide un puntaje de riesgo; el servicio de scoring lee las features del cliente y guarda el resultado | **Redis** | Lectura por clave en menos de 1 ms, ventanas deslizantes con sorted sets, TTL nativo. Evita agregar el historial en PostgreSQL en cada evento. |
 | 5–6 | Cada cambio confirmado en PostgreSQL se publica como evento (Change Data Capture con el conector Debezium) | **Kafka (Confluent Cloud)** | Desacopla: la API no escribe en dos bases. La clave del mensaje es `id_cliente`, así que los eventos de un cliente caen en la misma partición y el procesador los aplica en orden. |
-| 7–8 | Los eventos (vía el conector S3 Sink) y una foto diaria de `v_features_cliente` llegan al Data Lake | **S3 + Parquet** | Almacenamiento columnar barato para entrenar con todo el histórico sin cargar la base transaccional. |
-| 9 | Se entrena, valida y despliega el modelo (Isolation Forest / gradient boosting) | **SageMaker** | Las etiquetas salen de las decisiones del back-office (rechazos por cumplimiento) y vuelven a mejorar el modelo. |
+| 7–8 | Databricks lee los topics de Kafka (Structured Streaming) y recibe una foto diaria de `v_features_cliente`; todo queda en tablas Delta (bronze → silver → gold) | **Databricks + Delta Lake en S3** | Almacenamiento columnar barato para entrenar con todo el histórico sin cargar la base transaccional. Delta agrega transacciones ACID y versiones sobre los archivos del Data Lake. |
+| 9 | Se entrena, valida, registra y despliega el modelo (Isolation Forest / gradient boosting) | **MLflow (Databricks)** | Cada entrenamiento queda versionado con sus parámetros y métricas; el servicio de scoring carga la versión aprobada. Las etiquetas salen de las decisiones del back-office (rechazos por cumplimiento). |
 
 # Flujo de scoring en tiempo real y presupuesto de latencia
 

@@ -18,13 +18,15 @@ curso de Cloud Computing. Autorizado por el docente, con datos sintéticos.
 
 ## Entregable 2 (también en `grupo_01/`)
 Arquitectura para IA: detección de operaciones inusuales en tiempo real con Redis, Kafka (Confluent Cloud) y
-Data Lake. Fuentes en `docs/fuentes/parte2/`.
+Databricks (Delta Lake y MLflow). Fuentes en `docs/fuentes/parte2/`.
 | Archivo | Contenido |
 |---|---|
 | `informe_final.pdf` | Caso de IA, caracterización, selección de tecnología, comparación y Polyglot Persistence |
 | `arquitectura.pdf` | Diagrama de arquitectura, flujos, secuencia de scoring y presupuesto de latencia |
 | `modelo_nosql.pdf` | Diseño de claves en Redis, equivalencia con las features SQL y topics de Kafka |
 | `sql/06_parte2_caracterizacion.sql` | Mide las cifras de la caracterización del problema |
+| `sql/07_exportar_features.sql` | Exporta `v_features_cliente` (con las etiquetas, solo para evaluar) a `datos/features_clientes.csv` |
+| `notebooks/modelo_anomalias.py` | Notebook de Databricks: Isolation Forest, evaluación y registro en MLflow. Local: `python grupo_01/notebooks/modelo_anomalias.py grupo_01/datos/features_clientes.csv` (requiere pandas y scikit-learn) |
 
 Los enunciados de ambas partes están en `docs/enunciados/`.
 

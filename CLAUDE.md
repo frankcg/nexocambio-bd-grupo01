@@ -15,8 +15,17 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   `docs/fuentes/parte2/`). Caso de IA: detección de operaciones inusuales en tiempo real
   (prevención de lavado de activos). Tecnología: Redis como feature store en línea, Kafka
   en Confluent Cloud (CDC con Debezium, topics con clave `id_cliente`, conector S3 Sink) y Data
-  Lake S3. Revisada contra el enunciado el 14/11/2026: cubre todo. Kafka reemplazó a Kinesis
-  (el profesor enseña Kafka / Confluent Cloud en clase).
+  Lake S3. Revisada contra el enunciado el 14/11/2026: cubre todo. Kafka reemplazó a Kinesis y
+  **Databricks** (Structured Streaming → Delta Lake, Spark SQL, MLflow) reemplazó a S3 Sink,
+  Athena/Glue y SageMaker: el profesor enseña Kafka / Confluent Cloud y Databricks en clase.
+- **Modelo probado** (informe_final, sección 5.1): `sql/07_exportar_features.sql` →
+  `datos/features_clientes.csv` → `notebooks/modelo_anomalias.py` (Isolation Forest, semilla 42).
+  Top 2 % (709 clientes): 329 de 492 anomalías, precisión 46,4 %, recall 66,9 %, ROC AUC 0,896.
+  Por perfil: pitufeo 100 %, nocturno 92,3 %, multicuenta 69,7 %, pico 1,6 % (la feature
+  `variacion_monto_30d` no lo separa). Cifras de la ejecución local (scikit-learn 1.9.1);
+  **falta ejecutarlo en Databricks Free Edition** y confirmar que coincide.
+- Entorno Python en `.venv/` (Python 3.14): confluent-kafka, redis, psycopg, pandas, scikit-learn.
+  Confluent Cloud: cluster **Basic** en AWS us-east-2; credenciales en `.env` (no versionado).
 - **Presentación final** (máx. ≈ 11 diapositivas, con demo). Demo propuesta: seguir a
   CLI-ZYCHEZ. Acto 1 en PostgreSQL (restricción que rechaza, C6, features, O1 antes/después).
   Acto 2: evento en un topic de Confluent Cloud → consumidor → Redis en Docker (< 1 ms frente a
