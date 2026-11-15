@@ -17,9 +17,9 @@ riesgoso (fracciona sus operaciones justo debajo de US$ 10 000).
    ```
    .venv\Scripts\python demo/0_preparar.py
    ```
-4. Abrir dos terminales en la raíz del proyecto (con `PYTHONIOENCODING=utf-8` si los acentos
-   se ven mal) y dejar en la **terminal B** el procesador corriendo hasta que diga
-   *"Escuchando nexocambio.operaciones"*:
+4. Abrir dos terminales de PowerShell en la raíz del proyecto. Si los acentos se ven mal,
+   ejecutar antes `$env:PYTHONIOENCODING = "utf-8"` en cada una. Dejar en la **terminal B** el
+   procesador corriendo hasta que diga *"Escuchando nexocambio.operaciones"*:
    ```
    .venv\Scripts\python demo/2_procesador.py
    ```
@@ -30,8 +30,10 @@ scikit-learn.
 
 ## Acto 1 · PostgreSQL (Parte 1, ≈ 2,5 min) · terminal A
 
+En PowerShell (el `&` es necesario porque la ruta va entre comillas):
 ```
-"C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -p 5433 -U postgres -d nexocambio -f demo/acto1_postgresql.sql
+$env:PGCLIENTENCODING = "UTF8"
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -p 5433 -U postgres -d nexocambio -f demo/acto1_postgresql.sql
 ```
 
 El script se detiene antes de cada paso: **Enter** para seguir.
