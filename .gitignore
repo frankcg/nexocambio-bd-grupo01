@@ -8,6 +8,9 @@ generador/salida/
 __pycache__/
 .venv/
 
+# Modelo entrenado por demo/0_preparar.py
+demo/_modelo.pkl
+
 # Credenciales
 .env
 pgpass.conf

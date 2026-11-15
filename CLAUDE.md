@@ -27,11 +27,15 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   cifras idénticas. Cuenta de Databricks: la del equipo (correo UTEC de Frank).
 - Entorno Python en `.venv/` (Python 3.14): confluent-kafka, redis, psycopg, pandas, scikit-learn.
   Confluent Cloud: cluster **Basic** en AWS us-east-2; credenciales en `.env` (no versionado).
-- **Presentación final** (máx. ≈ 11 diapositivas, con demo). Demo propuesta: seguir a
-  CLI-ZYCHEZ. Acto 1 en PostgreSQL (restricción que rechaza, C6, features, O1 antes/después).
-  Acto 2: evento en un topic de Confluent Cloud → consumidor → Redis en Docker (< 1 ms frente a
-  257 ms en PostgreSQL). Falta: cuenta de Confluent Cloud (cluster y API keys los crea el equipo),
-  script de la demo y guion de diapositivas.
+- **Presentación final** (máx. ≈ 11 diapositivas, con demo). **Demo lista** en `demo/` (guía en
+  `demo/README.md`): acto 1 en PostgreSQL (`acto1_postgresql.sql`: restricción, C6, features,
+  O1 ≈ 70 → 0,6 ms) y acto 2 con Kafka + Redis (`0_preparar.py`, `1_comparar.py`,
+  `2_procesador.py`, `3_publicar.py`). Probado el 15/11/2026: features idénticas en PostgreSQL y
+  Redis; CLI-ZYCHEZ → riesgo ALTO, CLI-06EZN7 → NORMAL; Kafka ≈ 1,2 s, Redis ≈ 1–4 ms (0,55 ms
+  dentro de Redis; el resto es la red de Docker Desktop), inferencia ≈ 15–30 ms.
+  Topics creados en Confluent Cloud (6 particiones; clientes compactado). Redis en Docker
+  (`demo/docker-compose.yml`, contenedor `nexocambio-redis`). Falta: guion de diapositivas y
+  video de respaldo.
 
 ## Pendientes (al 14/11/2026)
 - Enunciados en `docs/enunciados/` (`parte1.md`, `parte2.md`).

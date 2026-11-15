@@ -1,0 +1,8 @@
+# NexoCambio · Demo: Redis local como feature store en línea.
+#   docker compose -f demo/docker-compose.yml up -d
+services:
+  redis:
+    image: redis:7.4.2-alpine
+    container_name: nexocambio-redis
+    ports:
+      - "6379:6379"
