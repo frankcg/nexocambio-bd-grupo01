@@ -331,7 +331,7 @@ Además, el modelo obtuvo un ROC AUC de 0,922 (0,896 en la primera versión) y n
 
 **Uno de cada seis dólares que mueve NexoCambio viene de clientes con comportamiento inusual**, entre ellos sus dos mayores clientes (CLI-ZYCHEZ y CLI-XKLBXW, que fraccionan) y ninguno de sus clientes grandes legítimos. Es ingreso expuesto a sanciones de la UIF y a que los bancos cierren las cuentas de la empresa. Con este dato, la gerencia puede aplicar debida diligencia reforzada a 438 clientes en vez de a 35 438.
 
-Las cifras salen de `resultados/09_medallion_resultados.txt`, la ejecución local del notebook con PySpark 4.0. Una primera versión del modelo, sin la capa medallion, ya se había ejecutado en **Databricks Free Edition** con resultados idénticos a los locales; allí el notebook registra además el modelo en MLflow y escribe las tablas Delta.
+Las cifras salen de `resultados/09_medallion_resultados.txt`. El notebook se ejecutó en **Databricks Free Edition** (cómputo *serverless*, con los extractos en un *Volume* de Unity Catalog) y con PySpark 4.0 en local, y **ambas ejecuciones dieron exactamente las mismas cifras**: sumas de control, modelo, exposición y reactivación. En Databricks, además, las 11 tablas quedan como tablas Delta y el modelo queda registrado en MLflow (run `isolation_forest_medallion`).
 
 ## 5.2 Segundo uso de la misma arquitectura: recuperar cotizaciones abandonadas
 
