@@ -56,8 +56,10 @@ FROM (SELECT DISTINCT ON (id_cliente, fecha_cotizacion::date) *
 
 
 \echo '\n=========== B · Clientes frecuentes (≥ 5 operaciones) según su inactividad ==========='
--- Activo: inactivo ≤ 2 × su intervalo habitual. En riesgo: más que eso, pero ≤ 120 días.
+-- Activo: inactivo ≤ 2 × su intervalo habitual (y como mínimo 14 días, para no alertar por un
+-- cliente diario que descansó un fin de semana). En riesgo: más que eso, pero ≤ 120 días.
 -- Abandono: más de 120 días. El ingreso es el spread mensual promedio mientras estuvo activo.
+-- Es la misma regla de gold_reactivacion en el notebook pipeline_medallion.
 WITH ops AS (
     SELECT id_cliente, fecha_operacion, monto_usd, spread_aplicado,
            LAG(fecha_operacion) OVER (PARTITION BY id_cliente ORDER BY fecha_operacion) AS anterior
@@ -70,7 +72,7 @@ WITH ops AS (
              / greatest(extract(epoch FROM max(fecha_operacion) - min(fecha_operacion)) / 86400 / 30.4, 1) AS spread_mes
     FROM ops GROUP BY 1 HAVING count(*) >= 5
 )
-SELECT CASE WHEN inactivo <= 2 * intervalo THEN '1. Activo' WHEN inactivo <= 120 THEN '2. En riesgo'
+SELECT CASE WHEN inactivo <= greatest(2 * intervalo, 14) THEN '1. Activo' WHEN inactivo <= 120 THEN '2. En riesgo'
             ELSE '3. Abandono' END AS segmento,
        count(*) AS clientes, round(avg(inactivo)) AS dias_inactivo_prom,
        round(sum(spread_mes)) AS spread_mensual_cuando_activos_usd

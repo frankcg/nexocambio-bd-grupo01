@@ -26,8 +26,8 @@ Databricks (Delta Lake y MLflow). Fuentes en `docs/fuentes/parte2/`.
 | `modelo_nosql.pdf` | Diseño de claves en Redis, equivalencia con las features SQL y topics de Kafka |
 | `sql/06_parte2_caracterizacion.sql` | Mide las cifras de la caracterización del problema |
 | `sql/08_oportunidades_ingreso.sql` | Mide las oportunidades de ingreso: cotizaciones abandonadas y clientes por reactivar |
-| `sql/07_exportar_features.sql` | Exporta `v_features_cliente` (con las etiquetas, solo para evaluar) a `datos/features_clientes.csv` |
-| `notebooks/modelo_anomalias.py` | Notebook de Databricks: Isolation Forest, evaluación y registro en MLflow. Local: `python grupo_01/notebooks/modelo_anomalias.py grupo_01/datos/features_clientes.csv` (requiere pandas y scikit-learn) |
+| `generador/exportar_bronze.py` | Exporta de PostgreSQL los extractos de la capa bronze a `datos/bronze/` (no versionado, ~34 MB) e imprime sumas de control de las features |
+| `notebooks/pipeline_medallion.py` | Notebook de Databricks: bronze → silver → gold (features con Spark SQL, riesgo, exposición y reactivación), Isolation Forest y MLflow. También corre con PySpark local |
 
 Los enunciados de ambas partes están en `docs/enunciados/`.
 

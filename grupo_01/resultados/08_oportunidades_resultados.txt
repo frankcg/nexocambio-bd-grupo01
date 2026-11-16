@@ -28,8 +28,8 @@ SELECT 161496
 =========== B · Clientes frecuentes (≥ 5 operaciones) según su inactividad ===========
    segmento   | clientes | dias_inactivo_prom | spread_mensual_cuando_activos_usd 
 --------------+----------+--------------------+-----------------------------------
- 1. Activo    |    14205 |                  9 |                            525215
- 2. En riesgo |     5400 |                 55 |                            197995
+ 1. Activo    |    14614 |                  9 |                            577690
+ 2. En riesgo |     4991 |                 58 |                            145520
  3. Abandono  |     7465 |                294 |                            240057
 (3 filas)
 

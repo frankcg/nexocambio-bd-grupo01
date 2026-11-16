@@ -1,0 +1,55 @@
+﻿Bronze
+  bronze_operaciones                 918,479 filas
+  bronze_clientes                     50,000 filas
+  bronze_cuentas                     224,441 filas
+  bronze_etiquetas                       509 filas
+Silver
+  silver_clientes                     50,000 filas
+  silver_operaciones                 918,479 filas
+  silver_operaciones_rechazadas            0 filas
+Gold
+  gold_features_cliente               35,438 filas
+Sumas de control de gold_features_cliente (Spark):
+  clientes: 35,438
+  operaciones_30d                no nulos  35,438   suma         81,750.000
+  monto_promedio_usd_90d         no nulos  23,697   suma     36,224,429.320
+  dias_desde_ultima_operacion    no nulos  35,438   suma      3,799,184.000
+  ratio_rechazo                  no nulos  35,314   suma          2,860.486
+  ratio_cerca_umbral_90d         no nulos  23,697   suma            224.962
+  ratio_cuentas_terceros         no nulos  35,135   suma             75.541
+  variacion_monto_30d            no nulos  16,968   suma         23,371.870
+  ratio_nocturno                 no nulos  35,438   suma            375.880
+  gold_clientes_riesgo                35,438 filas
+Clientes: 35,438 · con anomalía inyectada: 492
+Riesgo ALTO (top 2 %): 709 revisados · 339 detectados · precisión 47.8% · recall 68.9% · ROC AUC 0.922
+Clientes grandes legítimos marcados: 0 de 94
+             clientes detecta
+perfil                       
+multicuenta       119   73.1%
+nocturno           91   94.5%
+pico              122    4.9%
+pitufeo           160  100.0%
+  gold_exposicion_riesgo                   3 filas
+nivel_riesgo  clientes  operaciones volumen_usd spread_usd pct_volumen pct_spread
+        ALTO       438        11015    75405404     277616        16.9       16.2
+       MEDIO      2398        21361   100826292     345719        22.6       20.2
+      NORMAL     20570       166482   270526828    1091800        60.6       63.7
+ segmento  clientes  dias_inactivo_prom  spread_mensual_cuando_activos_usd
+ Abandono      7465               294.0                           240057.0
+   Activo     14614                 9.0                           577690.0
+En riesgo      4991                58.0                           145520.0
+  gold_reactivacion                    4,991 filas
+ contactar  clientes  spread_mensual_usd
+      True      4963            144616.0
+     False        28               905.0
+codigo_cliente  operaciones  intervalo_habitual_dias  dias_inactivo  spread_mensual_usd    ultima_operacion nivel_riesgo  contactar
+    CLI-XRSQEX          230                      0.2          104.0             2669.67 2026-07-09 13:53:32       NORMAL       True
+    CLI-P0XFDN          152                      0.3           95.0             2478.18 2026-07-18 15:19:39       NORMAL       True
+    CLI-ML9UGK          772                      0.5           27.0             1546.92 2026-09-25 09:54:57       NORMAL       True
+    CLI-EDTS6P          822                      0.5           31.0             1302.25 2026-09-20 12:47:54       NORMAL       True
+    CLI-QT3HEK           61                      0.4          103.0             1240.30 2026-07-10 16:55:52       NORMAL       True
+    CLI-L5B2BB          597                      0.6           22.0             1012.83 2026-09-29 13:55:45        MEDIO       True
+    CLI-7ODOBB          703                      0.7           27.0              985.14 2026-09-24 18:03:33       NORMAL       True
+    CLI-HOF2YW          173                      0.6           18.0              970.82 2026-10-03 18:30:39        MEDIO       True
+    CLI-9ZQ67T           48                      0.6           73.0              965.49 2026-08-09 20:55:22        MEDIO       True
+    CLI-UH8CT5          372                      1.0           62.0              623.48 2026-08-20 17:49:58       NORMAL       True

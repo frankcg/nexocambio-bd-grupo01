@@ -1,0 +1,15 @@
+﻿  operaciones.csv.gz       918,479 filas    30.7 MB
+  clientes.csv.gz           50,000 filas     1.0 MB
+  cuentas.csv.gz           224,441 filas     2.0 MB
+  etiquetas.csv.gz             509 filas
+
+Sumas de control de v_features_cliente (PostgreSQL):
+  clientes: 35,438
+  operaciones_30d                no nulos  35,438   suma         81,750.000
+  monto_promedio_usd_90d         no nulos  23,697   suma     36,224,429.320
+  dias_desde_ultima_operacion    no nulos  35,438   suma      3,799,184.000
+  ratio_rechazo                  no nulos  35,314   suma          2,860.486
+  ratio_cerca_umbral_90d         no nulos  23,697   suma            224.962
+  ratio_cuentas_terceros         no nulos  35,135   suma             75.541
+  variacion_monto_30d            no nulos  16,968   suma         23,371.870
+  ratio_nocturno                 no nulos  35,438   suma            375.880

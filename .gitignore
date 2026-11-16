@@ -2,11 +2,15 @@
 generador/salida/
 *.csv
 !grupo_01/datos/dataset.csv
-!grupo_01/datos/features_clientes.csv
+grupo_01/datos/bronze/
 
 # Python
 __pycache__/
 .venv/
+.venv-spark/
+spark-warehouse/
+metastore_db/
+derby.log
 
 # Modelo entrenado por demo/0_preparar.py
 demo/_modelo.pkl

@@ -271,9 +271,21 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 6. **Histórico y entrenamiento.** **Databricks** lee los topics de Kafka con Structured Streaming y guarda todos los eventos en tablas **Delta** sobre S3 (capa *bronze*). Cada noche recibe también `v_features_cliente`. Con **Spark SQL** se prepara el conjunto de entrenamiento (capas *silver* y *gold*) y **MLflow** registra cada entrenamiento con sus parámetros y métricas (precisión en el top-k de la cola, recall de ROS confirmados). La versión aprobada se despliega en el servicio de scoring.
 7. **Perfil batch.** Cada noche, el mismo `v_features_cliente` (5,5 s para todos los clientes) reescribe `cli:{id}:perfil` en Redis.
 
-## 5.1 Prueba del modelo en Databricks
+## 5.1 Implementación: pipeline medallion y modelo en Databricks
 
-Para comprobar que el caso de IA es viable, se entrenó el modelo de la fase 1 con datos reales del proyecto. Se exportó `v_features_cliente` (`sql/07_exportar_features.sql`, 35 438 clientes) y el notebook `notebooks/modelo_anomalias.py` entrenó un **Isolation Forest**. El modelo es **no supervisado**: nunca vio las etiquetas. Las 492 etiquetas de anomalías inyectadas (1,39 % de los clientes) se usaron solo para medir el resultado.
+La capa analítica se implementó con la **arquitectura medallion** en un solo notebook de Databricks (`notebooks/pipeline_medallion.py`), sobre tablas Delta:
+
+| Capa | Tablas | Qué hace |
+|---|---|---|
+| **Bronze** | `bronze_operaciones`, `bronze_clientes`, `bronze_cuentas`, `bronze_etiquetas` | Guarda los extractos de PostgreSQL tal como llegan (918 479 operaciones, 50 000 clientes, 224 441 cuentas), con la fecha de carga y el archivo de origen |
+| **Silver** | `silver_operaciones`, `silver_clientes`, `silver_operaciones_rechazadas` | Corrige tipos, quita duplicados y valida (monto positivo, estado válido, fecha anterior al corte); lo inválido va a cuarentena. Agrega si la cuenta destino es de un tercero y la hora local |
+| **Gold** | `gold_features_cliente`, `gold_clientes_riesgo`, `gold_exposicion_riesgo`, `gold_reactivacion` | Las 8 features con Spark SQL, el riesgo de cada cliente, la exposición del negocio y los clientes a reactivar |
+
+Bronze se carga **por lotes** desde extractos de PostgreSQL (`generador/exportar_bronze.py`); en producción se llenaría desde los topics de Kafka con Structured Streaming, sin cambiar silver ni gold.
+
+**Las mismas features en tres tecnologías.** `gold_features_cliente` replica en Spark SQL la vista `v_features_cliente` de la Parte 1. Para comprobarlo se compararon las sumas de control de las 8 features (cantidad de valores no nulos y suma) en los 35 438 clientes: **son idénticas a las de PostgreSQL** (`resultados/09_bronze_y_control_postgresql.txt` y `09_medallion_resultados.txt`). En Redis, la demo también reproduce exactamente las features de cada cliente (paso 5 de la demo). Es la garantía contra el *training-serving skew*: se entrena y se predice con lo mismo.
+
+**El modelo.** Sobre `gold_features_cliente` se entrenó un **Isolation Forest**. Es **no supervisado**: nunca vio las etiquetas. Las 492 etiquetas de anomalías inyectadas (1,39 % de los clientes) se usaron solo para medir el resultado.
 
 **El modelo usa solo las 5 features de comportamiento** (ratios de rechazo, cercanía al umbral, cuentas de terceros, variación del monto y actividad nocturna). Una primera versión usaba también las 3 de tamaño y actividad (operaciones en 30 días, ticket y recencia), y marcaba como riesgo ALTO a **59 de los 94 clientes grandes legítimos** que están entre los 100 más activos: confundía "cliente grande" con "cliente raro". Sin esas features, el modelo encuentra más casos inusuales y **no marca a ninguno** de esos clientes. El criterio de negocio es juzgar **cómo opera** el cliente, no **cuánto opera**.
 
@@ -305,7 +317,21 @@ Además, el modelo obtuvo un ROC AUC de 0,922 (0,896 en la primera versión) y n
 - **El pico de montos casi no se detecta, y eso confirma la arquitectura.** Con las features batch, el perfil "pico" se parece demasiado al de un cliente normal: la mediana de `variacion_monto_30d` es 1,01, igual que la de los clientes normales. Un pico se reconoce comparando **la operación actual** con el perfil del cliente, y eso es justo lo que hace el scoring en línea con Redis (paso 2 del recorrido): suma la operación actual a las features del cliente y agrega `operaciones_24h`.
 - **El modelo prioriza, no decide.** El 47,8 % de precisión significa que más de la mitad de los clientes señalados son normales. Por eso la decisión final sigue siendo del analista, y esas decisiones son las etiquetas con las que se entrenaría el modelo supervisado de la fase 3.
 
-Las cifras salen de `resultados/07_modelo_resultados.txt`. La primera versión del notebook se ejecutó en **Databricks Free Edition** (cómputo *serverless*, leyendo el CSV desde un *Volume* de Unity Catalog) y dio exactamente las mismas cifras que la ejecución local; allí además registra el modelo en MLflow y guarda los scores como tabla Delta.
+**Exposición del negocio (`gold_exposicion_riesgo`).** Con el riesgo de cada cliente se mide qué parte del negocio de los últimos 90 días pasa por clientes inusuales:
+
+<div class="metricas">
+
+| Riesgo | Clientes | Volumen procesado | % del volumen | Spread cobrado | % del spread |
+|---|---|---|---|---|---|
+| **ALTO** (top 2 %) | 438 | US$ 75,4 millones | **16,9 %** | US$ 277 616 | **16,2 %** |
+| MEDIO (hasta el top 10 %) | 2 398 | US$ 100,8 millones | 22,6 % | US$ 345 719 | 20,2 % |
+| NORMAL | 20 570 | US$ 270,5 millones | 60,6 % | US$ 1 091 800 | 63,7 % |
+
+</div>
+
+**Uno de cada seis dólares que mueve NexoCambio viene de clientes con comportamiento inusual**, entre ellos sus dos mayores clientes (CLI-ZYCHEZ y CLI-XKLBXW, que fraccionan) y ninguno de sus clientes grandes legítimos. Es ingreso expuesto a sanciones de la UIF y a que los bancos cierren las cuentas de la empresa. Con este dato, la gerencia puede aplicar debida diligencia reforzada a 438 clientes en vez de a 35 438.
+
+Las cifras salen de `resultados/09_medallion_resultados.txt`, la ejecución local del notebook con PySpark 4.0. Una primera versión del modelo, sin la capa medallion, ya se había ejecutado en **Databricks Free Edition** con resultados idénticos a los locales; allí el notebook registra además el modelo en MLflow y escribe las tablas Delta.
 
 ## 5.2 Segundo uso de la misma arquitectura: recuperar cotizaciones abandonadas
 
@@ -332,6 +358,26 @@ Las cotizaciones seguidas de una operación en las 24 horas siguientes no cuenta
 4. **A un cliente de riesgo ALTO no se le ofrece ningún incentivo.** El mismo modelo que protege al negocio filtra a quién se le hace una oferta comercial.
 
 En la demo, el ciclo completo (cotización, vencimiento, consulta de riesgo y decisión) toma unos 30–50 ms después de que vence la tasa. Las cifras usan datos ficticios: las tasas de conversión las definió el generador de datos, así que muestran el método y el orden de magnitud, no una predicción.
+
+## 5.3 Tercer uso, en batch: clientes a reactivar
+
+La tabla `gold_reactivacion` del pipeline medallion responde una pregunta comercial que no necesita tiempo real: **¿qué clientes frecuentes se están enfriando y cuánto valían?** Es la lógica de la consulta C9 de la Parte 1, llevada a una tabla que el área comercial recibe cada semana.
+
+Un cliente frecuente (5 operaciones procesadas o más) está **en riesgo de abandono** cuando lleva sin operar más del doble de su intervalo habitual y al menos 14 días, pero menos de 120. El mínimo de 14 días evita alertar por un cliente que opera a diario y no lo hizo un fin de semana.
+
+<div class="metricas">
+
+| Segmento | Clientes | Días sin operar (promedio) | Spread mensual cuando estaban activos |
+|---|---|---|---|
+| Activo | 14 614 | 9 | US$ 577 690 |
+| **En riesgo** | **4 991** | **58** | **US$ 145 520** |
+| Abandono (más de 120 días) | 7 465 | 294 | US$ 240 057 |
+
+</div>
+
+Los clientes en riesgo generaban **US$ 145 520 de spread al mes**, el 25 % del ingreso mensual de septiembre. La lista se ordena por ese valor, así que el área comercial empieza por los que más aportaban. Recuperar a uno de cada cinco equivaldría a unos US$ 29 000 al mes. **De los 4 991, se excluye a los 28 de riesgo ALTO**: la misma regla de la sección 5.2, no premiar al cliente riesgoso. Las cifras coinciden exactamente entre el notebook (Spark) y `sql/08_oportunidades_ingreso.sql` (PostgreSQL).
+
+Con esto, la plataforma de datos sirve a tres decisiones con los mismos datos y el mismo modelo: **a quién revisar** (cumplimiento, en tiempo real), **a quién rescatar en el momento** (cotizaciones, en tiempo real) y **a quién llamar esta semana** (reactivación, en batch).
 
 # 6. Comparación entre PostgreSQL y Redis
 
@@ -406,4 +452,4 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 2. **El problema no es de volumen sino de latencia y patrón de acceso:** 18 500 eventos por día y un estado en línea de ≈ 150 MB. Lo que PostgreSQL no hace bien es mantener ventanas por cliente con costo constante; con él, las features cuestan de 6 a 257 ms según el historial.
 3. **Redis es la tecnología adecuada** porque sus estructuras (sorted sets, hashes, sets y TTL) son las mismas operaciones que piden las features. Con Kafka en Confluent Cloud (CDC) y Databricks (Delta Lake y MLflow) completa un ciclo de detección, decisión humana y reentrenamiento. La prueba del modelo lo respalda: revisando el 2 % de los clientes encuentra el 68,9 % de los casos inusuales, sin marcar a los clientes grandes legítimos.
 4. **PostgreSQL no se reemplaza, se protege:** sigue siendo el sistema de registro, con su integridad, sus índices y sus consultas de negocio, mientras la carga de tiempo real se resuelve fuera de él. Eso es Polyglot Persistence aplicada con criterio.
-5. **La misma plataforma protege el negocio y lo hace crecer.** Los eventos, las features y el score de riesgo que sirven a cumplimiento también permiten recuperar cotizaciones abandonadas en tiempo real, donde se pierde una intención de compra equivalente a la mitad del spread cobrado. Y el score de riesgo decide a quién no se le ofrece un incentivo.
+5. **La misma plataforma protege el negocio y lo hace crecer.** Los eventos, las features y el score de riesgo que sirven a cumplimiento también permiten recuperar cotizaciones abandonadas en tiempo real (intención de compra equivalente a la mitad del spread cobrado) y reactivar a 4 991 clientes que generaban US$ 145 520 al mes. En los dos casos, el score de riesgo decide a quién no se le ofrece un incentivo.

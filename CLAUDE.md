@@ -18,8 +18,15 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   Lake S3. Revisada contra el enunciado el 14/11/2026: cubre todo. Kafka reemplazó a Kinesis y
   **Databricks** (Structured Streaming → Delta Lake, Spark SQL, MLflow) reemplazó a S3 Sink,
   Athena/Glue y SageMaker: el profesor enseña Kafka / Confluent Cloud y Databricks en clase.
-- **Modelo probado** (informe_final, sección 5.1): `sql/07_exportar_features.sql` →
-  `datos/features_clientes.csv` → `notebooks/modelo_anomalias.py` (Isolation Forest, semilla 42).
+- **Medallion implementado** (informe_final, sección 5.1): `generador/exportar_bronze.py` →
+  `datos/bronze/*.csv.gz` (no versionado) → Volume `/Volumes/workspace/default/nexocambio/bronze`
+  → `notebooks/pipeline_medallion.py` (bronze/silver/gold; gold_features_cliente idéntica a
+  v_features_cliente por sumas de control; gold_clientes_riesgo, gold_exposicion_riesgo,
+  gold_reactivacion). Probado localmente con PySpark 4.0.1 en un venv de uv con Python 3.12
+  (ruta SIN espacios: Spark en Windows falla con espacios; Arrow activado para pandas → Spark).
+  **Falta ejecutarlo en Databricks** y confirmar cifras. Exposición: ALTO = 438 clientes, 16,9 %
+  del volumen y 16,2 % del spread (90 días). Reactivación (≥ 2× intervalo y ≥ 14 días, ≤ 120):
+  4 991 clientes, US$ 145 520/mes; 28 excluidos por riesgo ALTO. Isolation Forest (semilla 42).
   **Solo las 5 features de comportamiento** (16/11/2026): con las 8 marcaba a 59 de los 94 clientes
   grandes legítimos. Top 2 % (709): 339 de 492 anomalías, precisión 47,8 %, recall 68,9 %,
   ROC AUC 0,922, 0 grandes legítimos marcados. Por perfil: pitufeo 100 %, nocturno 94,5 %,
@@ -41,7 +48,7 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   `cotizaciones:pendientes` + stream `ofertas:recuperacion`; riesgo ALTO = sin incentivo; vigencia
   de 20 s en la demo). Cifras (`sql/08_oportunidades_ingreso.sql`, 90 días): intención perdida
   110 667 casos cliente-día, US$ 863 592 de spread frente a US$ 1 715 135 cobrado; reactivación:
-  5 400 clientes en riesgo, US$ 197 995/mes cuando activos. Informe_final sección 5.2.
+  4 991 clientes en riesgo, US$ 145 520/mes cuando activos (sección 5.3). Informe_final sección 5.2.
   Ojo: dos procesadores abiertos se reparten las particiones (debe decir 12 particiones). Redis en Docker
   (`demo/docker-compose.yml`, contenedor `nexocambio-redis`). Falta: guion de diapositivas y
   video de respaldo.
