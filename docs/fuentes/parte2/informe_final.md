@@ -288,7 +288,7 @@ Bronze tiene dos entradas:
 
 Así se cierra el flujo: **una operación publicada en Kafka llega en tiempo real a Redis (para decidir en milisegundos) y también al Data Lake (para el histórico)**. Se comprobó con los 13 eventos de las pruebas de la demo, que aparecieron en las dos tablas.
 
-**Automatización.** Las dos etapas forman el Job de Databricks `nexocambio_pipeline`: la tarea `ingesta_kafka` y, cuando termina, la tarea `medallion` (bronze → silver → gold → modelo). Se ejecutó con éxito en 4 minutos 42 segundos. Con un disparador programado (por ejemplo, cada noche), el pipeline deja de depender de que alguien lo ejecute a mano.
+**Automatización.** Las dos etapas forman el Job de Databricks `nexocambio_pipeline`: la tarea `ingesta_kafka` y, cuando termina, la tarea `medallion` (bronze → silver → gold → modelo). Se ejecutó con éxito en 4 minutos 42 segundos y está **programado todos los días a las 02:00 (hora de Lima)**, así que el pipeline no depende de que alguien lo ejecute a mano.
 
 **Las mismas features en tres tecnologías.** `gold_features_cliente` replica en Spark SQL la vista `v_features_cliente` de la Parte 1. Para comprobarlo se compararon las sumas de control de las 8 features (cantidad de valores no nulos y suma) en los 35 438 clientes: **son idénticas a las de PostgreSQL** (`resultados/09_bronze_y_control_postgresql.txt` y `09_medallion_resultados.txt`). En Redis, la demo también reproduce exactamente las features de cada cliente (paso 5 de la demo). Es la garantía contra el *training-serving skew*: se entrena y se predice con lo mismo.
 
