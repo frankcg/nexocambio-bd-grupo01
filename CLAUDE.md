@@ -35,7 +35,14 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   `2_procesador.py`, `3_publicar.py`). Probado el 15/11/2026: features idénticas en PostgreSQL y
   Redis; CLI-ZYCHEZ → riesgo ALTO, CLI-06EZN7 → NORMAL; Kafka ≈ 1,2 s, Redis ≈ 1–4 ms (0,55 ms
   dentro de Redis; el resto es la red de Docker Desktop), inferencia ≈ 15–30 ms.
-  Topics creados en Confluent Cloud (6 particiones; clientes compactado). Redis en Docker
+  Topics creados en Confluent Cloud (6 particiones; clientes compactado).
+  **Segundo uso (16/11/2026): recuperar cotizaciones abandonadas** en tiempo real
+  (`4_cotizar.py`, topic `nexocambio.cotizaciones`, Redis `cot:{codigo}` +
+  `cotizaciones:pendientes` + stream `ofertas:recuperacion`; riesgo ALTO = sin incentivo; vigencia
+  de 20 s en la demo). Cifras (`sql/08_oportunidades_ingreso.sql`, 90 días): intención perdida
+  110 667 casos cliente-día, US$ 863 592 de spread frente a US$ 1 715 135 cobrado; reactivación:
+  5 400 clientes en riesgo, US$ 197 995/mes cuando activos. Informe_final sección 5.2.
+  Ojo: dos procesadores abiertos se reparten las particiones (debe decir 12 particiones). Redis en Docker
   (`demo/docker-compose.yml`, contenedor `nexocambio-redis`). Falta: guion de diapositivas y
   video de respaldo.
 

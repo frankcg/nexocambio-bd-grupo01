@@ -1,0 +1,35 @@
+﻿SET
+SET
+
+=========== Referencia · ingreso por spread cobrado (operaciones procesadas) ===========
+ spread_90d_usd | spread_septiembre_usd 
+----------------+-----------------------
+        1715135 |                593540
+(1 fila)
+
+
+=========== A · Cotizaciones no convertidas de clientes registrados: ¿operó después? ===========
+SELECT 161496
+                resultado                | cotizaciones | clientes | volumen_usd | spread_usd 
+-----------------------------------------+--------------+----------+-------------+------------
+ 1. Operó en ≤ 30 min (volvió a cotizar) |         2880 |     1133 |     8753803 |      32039
+ 2. Operó entre 30 min y 24 h            |        40344 |     8534 |   105028358 |     387810
+ 3. No operó en 24 h (intención perdida) |       118272 |    22679 |   231849067 |     902100
+(3 filas)
+
+
+== A · Intención perdida sin duplicados: un caso por cliente y día (la cotización de mayor monto) ==
+ casos_cliente_dia | casos_por_dia | clientes | ticket_prom_usd | volumen_usd | spread_no_cobrado_usd | casos_desde_5000_usd 
+-------------------+---------------+----------+-----------------+-------------+-----------------------+----------------------
+            110667 |          1243 |    22679 |            2015 |   222985828 |                863592 |                10801
+(1 fila)
+
+
+=========== B · Clientes frecuentes (≥ 5 operaciones) según su inactividad ===========
+   segmento   | clientes | dias_inactivo_prom | spread_mensual_cuando_activos_usd 
+--------------+----------+--------------------+-----------------------------------
+ 1. Activo    |    14205 |                  9 |                            525215
+ 2. En riesgo |     5400 |                 55 |                            197995
+ 3. Abandono  |     7465 |                294 |                            240057
+(3 filas)
+

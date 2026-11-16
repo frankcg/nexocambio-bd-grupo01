@@ -11,8 +11,18 @@ Claves en Redis (ver modelo_nosql.pdf): todas las de un cliente llevan el hash t
     cli:{id}:destinos  Sorted set  cuentas destino (score = último uso en ms)
     op:{codigo}:riesgo Hash        score, nivel y motivos de una operación
     cola:riesgo        Sorted set  operaciones ordenadas por riesgo (cola del back-office)
+
+Segundo uso, recuperación de cotizaciones abandonadas:
+    cot:{codigo}            Hash        datos de la cotización y su estado (pendiente, convertida, vencida)
+    cotizaciones:pendientes Sorted set  cotizaciones por vencer (score = vencimiento en ms)
+    ofertas:recuperacion    Stream      acciones comerciales disparadas al vencer una cotización
+    metricas:cotizaciones   Hash        contadores: emitidas, convertidas, vencidas, ofertas, sin_oferta
 """
+import json
 import math
+import random
+import string
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -27,13 +37,18 @@ CORTE_MS = int(CORTE.timestamp() * 1000)
 DIA_MS = 86_400_000
 
 TOPIC_OPERACIONES = "nexocambio.operaciones"
+TOPIC_COTIZACIONES = "nexocambio.cotizaciones"
 TOPICS = {  # nombre: (particiones, compactado)
+    "nexocambio.cotizaciones": (6, False),
     "nexocambio.operaciones": (6, False),
     "nexocambio.comprobantes": (6, False),
     "nexocambio.estados": (6, False),
     "nexocambio.clientes": (3, True),
 }
 MODELO = DEMO / "_modelo.pkl"  # lo genera 0_preparar.py (no se versiona)
+# La tasa garantizada dura 5 minutos; en la demo, 20 segundos para no esperar frente al público.
+VIGENCIA_COTIZACION_S = 20
+UMBRAL_PREFERENCIAL_USD = 5000
 
 FEATURES = ["operaciones_30d", "monto_promedio_usd_90d", "dias_desde_ultima_operacion", "ratio_rechazo",
             "ratio_cerca_umbral_90d", "ratio_cuentas_terceros", "variacion_monto_30d", "ratio_nocturno"]
@@ -72,6 +87,50 @@ def conectar_postgres():
     # La contraseña la toma libpq de %APPDATA%\postgresql\pgpass.conf.
     return psycopg.connect("host=localhost port=5433 dbname=nexocambio user=postgres",
                            options="-c search_path=nexocambio -c TimeZone=America/Lima", autocommit=True)
+
+
+# --- Eventos de negocio (los publicaría Debezium a partir del WAL de PostgreSQL) ---
+
+def datos_cliente(pg, codigo_cliente):
+    """id del cliente y su cuenta destino más usada (con si el titular es el propio cliente)."""
+    fila = pg.execute("""
+        SELECT c.id_cliente, cc.id_cuenta, cc.tipo, b.nombre,
+               cc.titular IS NOT DISTINCT FROM coalesce(p.nombres || ' ' || p.apellidos, e.razon_social)
+        FROM cliente c
+        JOIN operacion o        ON o.id_cliente = c.id_cliente
+        JOIN cuenta_cliente cc  ON cc.id_cuenta = o.id_cuenta_destino
+        LEFT JOIN banco b       ON b.id_banco = cc.id_banco
+        LEFT JOIN persona_natural p ON p.id_cliente = c.id_cliente
+        LEFT JOIN empresa e     ON e.id_cliente = c.id_cliente
+        WHERE c.codigo_cliente = %s
+        GROUP BY 1, 2, 3, 4, 5 ORDER BY count(*) DESC LIMIT 1""", (codigo_cliente,)).fetchone()
+    if fila is None:
+        raise SystemExit(f"No existe el cliente {codigo_cliente} o no tiene operaciones.")
+    id_cliente, id_cuenta, tipo, banco, titular_es_cliente = fila
+    return id_cliente, {"id_cuenta": id_cuenta, "tipo": tipo, "banco": banco,
+                        "titular_es_cliente": bool(titular_es_cliente)}
+
+
+def codigo(prefijo):
+    return f"{prefijo}-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+
+
+def ahora_demo():
+    """Hora actual en la fecha congelada de la demo: el 21/10/2026, último día con datos."""
+    return datetime.now(LIMA).replace(year=2026, month=10, day=CORTE.day - 1)
+
+
+def evento(tipo, cuerpo_nombre, cuerpo):
+    return {"tipo_evento": tipo, "version": 1, "id_evento": str(uuid.uuid4()),
+            "ocurrido_en": ahora_demo().isoformat(timespec="seconds"), cuerpo_nombre: cuerpo}
+
+
+def publicar(productor, topic, id_cliente, ev, etiqueta):
+    def entregado(error, msg):
+        print(f"Error al publicar: {error}" if error else
+              f"Publicado {etiqueta} en {msg.topic()} · partición {msg.partition()}, offset {msg.offset()}")
+    productor.produce(topic, key=str(id_cliente), value=json.dumps(ev), on_delivery=entregado)
+    productor.flush(15)
 
 
 # --- Features desde Redis -----------------------------------------------------

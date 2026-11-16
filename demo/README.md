@@ -1,4 +1,4 @@
-# Demo de la presentación final (≈ 4 minutos)
+# Demo de la presentación final (≈ 5 minutos)
 
 Hilo conductor: seguir a **CLI-ZYCHEZ**, el cliente de mayor volumen, que resulta ser el más
 riesgoso (fracciona sus operaciones justo debajo de US$ 10 000).
@@ -45,7 +45,7 @@ El script se detiene antes de cada paso: **Enter** para seguir.
 | 3 | Sus features frente a un cliente típico: `ratio_cerca_umbral` 0,754 frente a 0,000 | …pero el 75 % de sus operaciones está justo debajo del umbral de la UIF: es fraccionamiento |
 | 4 | O1 antes y después del índice compuesto: ≈ 70 ms → ≈ 0,6 ms | El índice (id_cliente, fecha DESC) sigue el patrón de acceso: va directo al cliente y entrega las filas ordenadas |
 
-## Acto 2 · Kafka + Redis (Parte 2, ≈ 1,5 min) · terminal A
+## Acto 2 · Kafka + Redis (Parte 2, ≈ 2,5 min) · terminal A
 
 **Paso 5 · ¿Por qué no basta PostgreSQL?**
 ```
@@ -70,11 +70,32 @@ Para contrastar, un cliente típico:
 ```
 → **riesgo NORMAL**.
 
+**Paso 7 · Segundo uso: recuperar cotizaciones abandonadas**
+
+La misma arquitectura, ahora para vender más. La tasa garantizada dura 5 minutos; en la demo,
+20 segundos.
+```
+.venv\Scripts\python demo/4_cotizar.py CLI-06EZN7 3000
+.venv\Scripts\python demo/4_cotizar.py CLI-ZYCHEZ 9800
+```
+En la **terminal B**, a los 20 s: el cliente típico recibe una acción comercial ("mantener la tasa
+5 minutos más"); CLI-ZYCHEZ, **ninguna**, porque es de riesgo ALTO. El mismo modelo que protege
+al negocio decide a quién no se le ofrece un incentivo. Si se quiere mostrar una cotización que sí
+se convierte (no dispara nada):
+```
+.venv\Scripts\python demo/4_cotizar.py CLI-06EZN7 4500 --opera 5
+```
+Cifra para la diapositiva: en 90 días, la intención de compra perdida equivale a US$ 864 mil de
+spread, la mitad de lo cobrado (`grupo_01/resultados/08_oportunidades_resultados.txt`).
+
 Mensaje final: PostgreSQL es la fuente de verdad, Kafka mueve los eventos, Redis responde en
 milisegundos y Databricks entrena el modelo con el histórico (*Polyglot Persistence*).
 
 ## Si algo falla en vivo
 
+- **Un evento no aparece en la terminal B:** hay otro procesador abierto (por ejemplo, de un ensayo
+  anterior). Están en el mismo *consumer group* y Kafka reparte las particiones entre ambos.
+  Cerrar todos con Ctrl+C y dejar uno solo; al arrancar debe decir **12 particiones**.
 - **Confluent Cloud no responde** (internet): mostrar el paso 5, que no usa Kafka, y el video
   de respaldo.
 - **Docker / Redis caído:** `docker compose -f demo/docker-compose.yml up -d` y volver a

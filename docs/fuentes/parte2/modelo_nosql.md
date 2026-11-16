@@ -24,6 +24,9 @@ En PostgreSQL se modela **la realidad del negocio** (entidades normalizadas) y d
 | `op:{codigo}:riesgo` | Hash | Score, nivel, motivos, versión del modelo | Scoring | Back-office | TTL 30 días |
 | `cola:riesgo` | Sorted set | score = riesgo, miembro = código de operación pendiente | Scoring (`ZADD`); se quita al decidir (`ZREM`) | Back-office (`ZREVRANGE`) | Se vacía con las decisiones |
 | `modelo:activo` | String | Versión del modelo en producción | Pipeline de ML | Scoring | — |
+| `cot:{codigo}` | Hash | Cotización emitida: cliente, monto, vencimiento y estado (pendiente, convertida, vencida) | Procesador (al recibir la cotización) | Procesador (al vencer) | TTL 24 h |
+| `cotizaciones:pendientes` | Sorted set | score = vencimiento en ms, miembro = código de cotización | Procesador (`ZADD`); se quita al convertirse o vencer (`ZREM`) | Procesador (`ZRANGEBYSCORE` hasta ahora) | Se vacía sola: cada cotización sale en minutos |
+| `ofertas:recuperacion` | Stream | Acción comercial disparada por cada cotización vencida, con el riesgo del cliente | Procesador (`XADD`) | Área comercial y notificaciones (`XREAD`) | `MAXLEN` ≈ 10 000 |
 
 ## 3. Estructuras con ejemplos
 
@@ -146,7 +149,8 @@ Lo produce el conector CDC (Debezium) a partir del WAL de PostgreSQL, ya enrique
 
 | Topic | Eventos | Clave | Particiones | Retención |
 |---|---|---|---|---|
-| `nexocambio.operaciones` | `operacion_creada` | `id_cliente` | 6 | 7 días |
+| `nexocambio.cotizaciones` | `cotizacion_emitida` (segundo uso: recuperación de cotizaciones) | `id_cliente` | 6 | 7 días |
+| `nexocambio.operaciones` | `operacion_creada` (incluye la cotización de origen) | `id_cliente` | 6 | 7 días |
 | `nexocambio.comprobantes` | `comprobante_cargado` | `id_cliente` | 6 | 7 días |
 | `nexocambio.estados` | `estado_cambiado` (incluye el analista y el motivo de rechazo) | `id_cliente` | 6 | 7 días |
 | `nexocambio.clientes` | `cliente_registrado` | `id_cliente` | 3 | compactado |
@@ -217,9 +221,36 @@ Es lo que el servicio de scoring arma con los resultados del *pipeline* y entreg
 | `ops24h`, `destinos` | 7–90 días por cliente activo | ≈ 15 MB |
 | `cta:{…}:clientes` | ≈ 160 000 cuentas bancarias | ≈ 25 MB |
 | `op:{…}:riesgo` + `cola:riesgo` | ≈ 80 000 operaciones (30 días) | ≈ 30 MB |
-| **Total** | | **≈ 150 MB hoy · ≈ 1,5 GB con 10× de crecimiento** |
+| `cot:{…}` + `cotizaciones:pendientes` + `ofertas:recuperacion` | ≈ 5 700 cotizaciones al día (TTL 24 h) y 10 000 ofertas | ≈ 5 MB |
+| **Total** | | **≈ 155 MB hoy · ≈ 1,5 GB con 10× de crecimiento** |
 
 - **Nodo:** un clúster pequeño (por ejemplo `cache.r7g.large`, 13 GB) con una réplica en otra zona de disponibilidad. El volumen cabe holgadamente en memoria incluso con el crecimiento proyectado; la réplica es para disponibilidad, no para capacidad.
 - **Persistencia:** snapshots diarios. No se necesita durabilidad estricta: el estado se reconstruye con el job batch desde PostgreSQL más los últimos 7 días de Kafka.
 - **Seguridad:** cifrado en tránsito y en reposo; no se guardan nombres, documentos ni números de cuenta, solo IDs internos y hashes. Los datos personales permanecen en PostgreSQL.
 - **Si Redis no responde:** el scoring calcula las features de ese cliente directamente en PostgreSQL, con las mismas consultas de la Parte 1. El índice `idx_operacion_cliente_fecha` (O1) lee el historial del cliente en menos de 1 ms, y con los joins a cotización y tasa el cálculo toma pocos milisegundos: aceptable para un modo degradado, aunque no para todo el tráfico. Si eso también falla, se usan reglas simples y la operación **no se bloquea**: la validación humana del back-office sigue funcionando igual.
+
+## 9. Segundo uso: recuperación de cotizaciones abandonadas
+
+La misma infraestructura (Kafka, el procesador y Redis) sirve a un objetivo comercial: cuando un cliente registrado cotiza y la tasa garantizada vence sin que opere, se le ofrece una acción para que termine la operación. La pregunta que se modela es *"¿qué cotizaciones vencieron hace un instante sin operación?"*.
+
+1. Llega `cotizacion_emitida` → `HSET cot:{codigo}` (con `HSETNX` del estado para ignorar eventos repetidos) y `ZADD cotizaciones:pendientes vence_ms codigo`.
+2. Llega `operacion_creada` con esa cotización → `ZREM cotizaciones:pendientes codigo`: ya no está abandonada.
+3. Cada segundo, el procesador saca las vencidas con un script Lua atómico. Si hubiera varios procesadores, cada cotización la atiende uno solo:
+
+```lua
+-- KEYS: cotizaciones:pendientes · ARGV: ahora_ms, máximo por llamada
+local vencidas = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1], 'LIMIT', 0, ARGV[2])
+if #vencidas > 0 then redis.call('ZREM', KEYS[1], unpack(vencidas)) end
+return vencidas
+```
+
+4. Por cada vencida, lee las features del cliente (sección 4) y calcula su **score de riesgo**. Si es ALTO, **no se ofrece ningún incentivo**; si no, se decide la acción según el monto, y se registra en el stream `ofertas:recuperacion`:
+
+| Situación | Acción |
+|---|---|
+| Cliente de riesgo ALTO | Ninguna (solo se registra): cumplimiento manda sobre la venta |
+| Monto desde US$ 5 000 | Mantener la tasa preferencial 5 minutos más |
+| Monto entre US$ 4 000 y 4 999 | Ofrecer la tasa preferencial si sube a US$ 5 000 |
+| Otros montos | Mantener la tasa 5 minutos más |
+
+Se usa un *sorted set* por vencimiento y no las notificaciones de expiración de Redis (*keyspace notifications*) porque estas se pierden si el procesador está caído en ese instante. Con el *sorted set*, una cotización vencida espera en la lista hasta que alguien la atiende.

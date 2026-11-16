@@ -307,6 +307,32 @@ Además, el modelo obtuvo un ROC AUC de 0,922 (0,896 en la primera versión) y n
 
 Las cifras salen de `resultados/07_modelo_resultados.txt`. La primera versión del notebook se ejecutó en **Databricks Free Edition** (cómputo *serverless*, leyendo el CSV desde un *Volume* de Unity Catalog) y dio exactamente las mismas cifras que la ejecución local; allí además registra el modelo en MLflow y guarda los scores como tabla Delta.
 
+## 5.2 Segundo uso de la misma arquitectura: recuperar cotizaciones abandonadas
+
+La plataforma no solo protege el negocio: también puede hacerlo crecer. Un cliente registrado que cotiza recibe una **tasa garantizada por 5 minutos**; si no opera en ese tiempo, la venta suele perderse. Se midió cuánto ingreso se pierde así en los últimos 90 días (`sql/08_oportunidades_ingreso.sql`):
+
+<div class="metricas">
+
+| Cotizaciones de clientes registrados que no se convirtieron | Casos | Spread no cobrado |
+|---|---|---|
+| Operó en los 30 minutos siguientes (volvió a cotizar) | 2 880 cotizaciones | — |
+| Operó entre 30 minutos y 24 horas después | 40 344 cotizaciones | — |
+| **No operó en 24 horas: intención perdida** (un caso por cliente y día) | **110 667 casos · 1 243 al día** | **US$ 863 592** |
+| Referencia: spread cobrado en los mismos 90 días | | US$ 1 715 135 |
+
+</div>
+
+Las cotizaciones seguidas de una operación en las 24 horas siguientes no cuentan como pérdida: el cliente solo comparó o se le venció la tasa y volvió. Aun así, **la intención perdida equivale a la mitad del ingreso cobrado**. Son 22 679 clientes distintos con un ticket promedio de US$ 2 015, y 10 801 de esos casos superan los US$ 5 000. Recuperar el 10 % de esos casos equivaldría a unos **US$ 29 000 de spread al mes**, cerca del 5 % del ingreso mensual (US$ 593 540 en septiembre).
+
+**Cómo funciona.** La acción solo sirve si llega mientras el cliente todavía está decidiendo, así que tiene que ser en tiempo real. Por eso reutiliza la arquitectura de la sección 5 (detalle en `arquitectura.pdf` y `modelo_nosql.pdf`, sección 9):
+
+1. Cada cotización llega por el topic `nexocambio.cotizaciones` y el procesador la registra en Redis en un *sorted set* ordenado por vencimiento.
+2. Si llega la operación de esa cotización, sale de la lista.
+3. Si vence sin operación, el procesador lee las features del cliente, calcula su **score de riesgo** y decide: mantener la tasa 5 minutos más, o, si cotizó entre US$ 4 000 y 4 999, ofrecerle la tasa preferencial si sube a US$ 5 000.
+4. **A un cliente de riesgo ALTO no se le ofrece ningún incentivo.** El mismo modelo que protege al negocio filtra a quién se le hace una oferta comercial.
+
+En la demo, el ciclo completo (cotización, vencimiento, consulta de riesgo y decisión) toma unos 30–50 ms después de que vence la tasa. Las cifras usan datos ficticios: las tasas de conversión las definió el generador de datos, así que muestran el método y el orden de magnitud, no una predicción.
+
 # 6. Comparación entre PostgreSQL y Redis
 
 | Criterio | PostgreSQL | Redis (ElastiCache) |
@@ -360,7 +386,7 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 | Fase | Alcance | Valor |
 |---|---|---|
 | 1 · Batch | `v_features_cliente` nocturna → Isolation Forest en Databricks → ranking diario de clientes para cumplimiento | Ya probado (sección 5.1): con el 2 % de revisión encuentra el 68,9 % de los casos inusuales |
-| 2 · Tiempo real | CDC → Kafka → Redis; scoring síncrono al cargar el comprobante; cola por riesgo | Prioriza la revisión operación por operación |
+| 2 · Tiempo real | CDC → Kafka → Redis; scoring síncrono al cargar el comprobante; cola por riesgo; recuperación de cotizaciones abandonadas (sección 5.2) | Prioriza la revisión operación por operación y recupera ventas que se pierden en 5 minutos |
 | 3 · Aprendizaje continuo | Delta Lake + MLflow en Databricks; gradient boosting con las etiquetas del back-office; monitoreo de deriva de features | El modelo mejora con cada decisión |
 | 4 · Investigación | Grafo de cuentas compartidas (Neo4j) para redes de "mulas" | Análisis de redes, no solo de clientes individuales |
 
@@ -380,3 +406,4 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 2. **El problema no es de volumen sino de latencia y patrón de acceso:** 18 500 eventos por día y un estado en línea de ≈ 150 MB. Lo que PostgreSQL no hace bien es mantener ventanas por cliente con costo constante; con él, las features cuestan de 6 a 257 ms según el historial.
 3. **Redis es la tecnología adecuada** porque sus estructuras (sorted sets, hashes, sets y TTL) son las mismas operaciones que piden las features. Con Kafka en Confluent Cloud (CDC) y Databricks (Delta Lake y MLflow) completa un ciclo de detección, decisión humana y reentrenamiento. La prueba del modelo lo respalda: revisando el 2 % de los clientes encuentra el 68,9 % de los casos inusuales, sin marcar a los clientes grandes legítimos.
 4. **PostgreSQL no se reemplaza, se protege:** sigue siendo el sistema de registro, con su integridad, sus índices y sus consultas de negocio, mientras la carga de tiempo real se resuelve fuera de él. Eso es Polyglot Persistence aplicada con criterio.
+5. **La misma plataforma protege el negocio y lo hace crecer.** Los eventos, las features y el score de riesgo que sirven a cumplimiento también permiten recuperar cotizaciones abandonadas en tiempo real, donde se pierde una intención de compra equivalente a la mitad del spread cobrado. Y el score de riesgo decide a quién no se le ofrece un incentivo.

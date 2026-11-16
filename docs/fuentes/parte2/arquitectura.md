@@ -137,4 +137,37 @@ sequenceDiagram
 | **Total agregado a la API** | **≤ 60 ms** | El cliente no percibe la diferencia; el analista recibe la operación ya clasificada. |
 | Frescura de las ventanas (CDC → Redis) | ≤ 5 s | La operación actual se suma en el propio servicio de scoring; el evento asíncrono actualiza el estado para la siguiente. |
 
+# Segundo uso: recuperación de cotizaciones abandonadas
+
+La misma arquitectura atiende un objetivo comercial. La tasa garantizada dura 5 minutos: si vence sin que el cliente opere, el procesador consulta su riesgo y decide una acción para recuperarlo, salvo que sea de riesgo ALTO.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Cliente (web)
+    participant K as Kafka (Confluent Cloud)
+    participant P as Procesador
+    participant R as Redis
+    participant N as Notificaciones
+    C->>K: cotizacion_emitida (topic nexocambio.cotizaciones)
+    K->>P: evento
+    P->>R: HSET cot:#123;codigo#125; · ZADD cotizaciones:pendientes vence_ms
+    Note over C,R: El cliente no opera en 5 minutos
+    P->>R: Lua: ZRANGEBYSCORE ≤ ahora + ZREM (cotizaciones vencidas)
+    P->>R: features del cliente → score de riesgo
+    alt riesgo NORMAL o MEDIO
+        P->>R: XADD ofertas:recuperacion (acción)
+        P->>N: "Te mantenemos la tasa 5 minutos más"
+    else riesgo ALTO
+        P->>R: XADD ofertas:recuperacion (sin incentivo)
+    end
+```
+
+| Tramo | Tecnología | Por qué ahí |
+|---|---|---|
+| Emitir y transportar la cotización | **Kafka** (topic `nexocambio.cotizaciones`, clave `id_cliente`) | El mismo bus de eventos; la cotización y la operación de un cliente llegan en orden |
+| Saber qué cotizaciones vencieron | **Redis** (*sorted set* por vencimiento + script Lua) | Consulta por rango de tiempo en O(log n); atómica aunque haya varios procesadores |
+| Decidir si se ofrece un incentivo | **Redis** (features) + modelo de riesgo | El mismo score de cumplimiento actúa como filtro: no se premia al cliente riesgoso |
+| Registrar las ofertas | **Redis Stream** `ofertas:recuperacion` | El área comercial y el servicio de notificaciones las leen en orden |
+
 **Qué NO cambia:** PostgreSQL sigue siendo la única fuente de verdad. Redis guarda datos **derivados y reconstruibles**: si se pierde, se repuebla desde PostgreSQL (perfil batch) y desde Kafka (retención de 7 días: se vuelve a leer desde un *offset* anterior) o desde el Data Lake. El back-office ve la cola ordenada por riesgo, pero la decisión se registra siempre en `historial_estado`.

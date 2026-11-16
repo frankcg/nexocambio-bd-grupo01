@@ -25,6 +25,7 @@ Databricks (Delta Lake y MLflow). Fuentes en `docs/fuentes/parte2/`.
 | `arquitectura.pdf` | Diagrama de arquitectura, flujos, secuencia de scoring y presupuesto de latencia |
 | `modelo_nosql.pdf` | Diseño de claves en Redis, equivalencia con las features SQL y topics de Kafka |
 | `sql/06_parte2_caracterizacion.sql` | Mide las cifras de la caracterización del problema |
+| `sql/08_oportunidades_ingreso.sql` | Mide las oportunidades de ingreso: cotizaciones abandonadas y clientes por reactivar |
 | `sql/07_exportar_features.sql` | Exporta `v_features_cliente` (con las etiquetas, solo para evaluar) a `datos/features_clientes.csv` |
 | `notebooks/modelo_anomalias.py` | Notebook de Databricks: Isolation Forest, evaluación y registro en MLflow. Local: `python grupo_01/notebooks/modelo_anomalias.py grupo_01/datos/features_clientes.csv` (requiere pandas y scikit-learn) |
 
