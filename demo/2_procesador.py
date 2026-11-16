@@ -19,7 +19,7 @@ from datetime import datetime
 
 from confluent_kafka import Consumer
 
-from comun import (FEATURES, LIMA, MODELO, TOPIC_OPERACIONES, clave, conectar_redis, kafka_conf,
+from comun import (FEATURES_MODELO, LIMA, MODELO, TOPIC_OPERACIONES, clave, conectar_redis, kafka_conf,
                    leer_features, vector)
 
 # Actualización atómica de las ventanas del cliente (modelo_nosql.pdf, sección 5).
@@ -44,7 +44,7 @@ return 1
 def puntuar(m, feats):
     score = float(-m["modelo"].score_samples([vector(feats)])[0])
     nivel = "ALTO" if score >= m["umbral_alto"] else "MEDIO" if score >= m["umbral_medio"] else "NORMAL"
-    motivos = [f"{f}={feats[f]:g}" for f in FEATURES if feats[f] is not None and feats[f] > m["p99"][f]]
+    motivos = [f"{f}={feats[f]:g}" for f in FEATURES_MODELO if feats[f] is not None and feats[f] > m["p99"][f]]
     if feats["operaciones_24h"] >= 10:
         motivos.append(f"operaciones_24h={feats['operaciones_24h']}")
     return score, nivel, motivos

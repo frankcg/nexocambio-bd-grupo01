@@ -20,9 +20,11 @@ PostgreSQL**, diseñado desde las reglas de negocio, sin migrar datos de DynamoD
   Athena/Glue y SageMaker: el profesor enseña Kafka / Confluent Cloud y Databricks en clase.
 - **Modelo probado** (informe_final, sección 5.1): `sql/07_exportar_features.sql` →
   `datos/features_clientes.csv` → `notebooks/modelo_anomalias.py` (Isolation Forest, semilla 42).
-  Top 2 % (709 clientes): 329 de 492 anomalías, precisión 46,4 %, recall 66,9 %, ROC AUC 0,896.
-  Por perfil: pitufeo 100 %, nocturno 92,3 %, multicuenta 69,7 %, pico 1,6 % (la feature
-  `variacion_monto_30d` no lo separa). Ejecutado localmente (scikit-learn 1.9.1) y en
+  **Solo las 5 features de comportamiento** (16/11/2026): con las 8 marcaba a 59 de los 94 clientes
+  grandes legítimos. Top 2 % (709): 339 de 492 anomalías, precisión 47,8 %, recall 68,9 %,
+  ROC AUC 0,922, 0 grandes legítimos marcados. Por perfil: pitufeo 100 %, nocturno 94,5 %,
+  multicuenta 73,1 %, pico 4,9 % (la feature `variacion_monto_30d` no lo separa). La primera
+  versión (8 features: 329, 46,4 %, 66,9 %, AUC 0,896) se verificó en Databricks. Ejecutado localmente (scikit-learn 1.9.1) y en
   **Databricks Free Edition** (serverless, CSV en `/Volumes/workspace/default/nexocambio/`):
   cifras idénticas. Cuenta de Databricks: la del equipo (correo UTEC de Frank).
 - Entorno Python en `.venv/` (Python 3.14): confluent-kafka, redis, psycopg, pandas, scikit-learn.

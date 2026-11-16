@@ -37,6 +37,9 @@ MODELO = DEMO / "_modelo.pkl"  # lo genera 0_preparar.py (no se versiona)
 
 FEATURES = ["operaciones_30d", "monto_promedio_usd_90d", "dias_desde_ultima_operacion", "ratio_rechazo",
             "ratio_cerca_umbral_90d", "ratio_cuentas_terceros", "variacion_monto_30d", "ratio_nocturno"]
+# El modelo usa solo las de comportamiento: con las de tamaño confundía a los clientes grandes con inusuales.
+FEATURES_MODELO = ["ratio_rechazo", "ratio_cerca_umbral_90d", "ratio_cuentas_terceros",
+                   "variacion_monto_30d", "ratio_nocturno"]
 
 
 def clave(id_cliente, nombre):
@@ -124,7 +127,7 @@ def leer_features(r, id_cliente):
 
 
 def vector(features):
-    """Mismas reglas de nulos que el notebook de Databricks (notebooks/modelo_anomalias.py)."""
-    relleno = {"monto_promedio_usd_90d": 0, "ratio_rechazo": 0, "variacion_monto_30d": 1}
+    """Entrada del modelo, con las mismas reglas de nulos que el notebook de Databricks."""
+    relleno = {"ratio_rechazo": 0, "variacion_monto_30d": 1}
     return [float(features[f]) if features[f] is not None and not (isinstance(features[f], float)
-            and math.isnan(features[f])) else float(relleno.get(f, 0)) for f in FEATURES]
+            and math.isnan(features[f])) else float(relleno.get(f, 0)) for f in FEATURES_MODELO]

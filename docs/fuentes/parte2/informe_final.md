@@ -53,7 +53,7 @@ Este documento amplía la Parte 1 (`informe.pdf`), que contiene el modelo relaci
 - **Isolation Forest** (no supervisado), para detectar comportamientos raros que no se conocían.
 - **Gradient boosting** (supervisado), entrenado con las decisiones del back-office: las operaciones rechazadas por cumplimiento son los casos positivos.
 
-Las features son las 8 de la Parte 1 más tres que solo tienen sentido en tiempo real: `operaciones_24h`, `cuentas_destino_30d` y `cuenta_compartida`. Las decisiones de los analistas vuelven como nuevas etiquetas y cierran el ciclo de aprendizaje.
+Las features salen de las 8 de la Parte 1: el modelo usa las 5 que describen **comportamiento** (sección 5.1), y en tiempo real se suman `operaciones_24h`, `cuentas_destino_30d` y `cuenta_compartida`. Las decisiones de los analistas vuelven como nuevas etiquetas y cierran el ciclo de aprendizaje.
 
 # 2. Caracterización del problema
 
@@ -273,7 +273,9 @@ El diagrama completo, con la tabla de flujos, el diagrama de secuencia y el pres
 
 ## 5.1 Prueba del modelo en Databricks
 
-Para comprobar que el caso de IA es viable, se entrenó el modelo de la fase 1 con datos reales del proyecto. Se exportó `v_features_cliente` (`sql/07_exportar_features.sql`, 35 438 clientes) y el notebook `notebooks/modelo_anomalias.py` entrenó un **Isolation Forest** con las 8 features. El modelo es **no supervisado**: nunca vio las etiquetas. Las 492 etiquetas de anomalías inyectadas (1,39 % de los clientes) se usaron solo para medir el resultado.
+Para comprobar que el caso de IA es viable, se entrenó el modelo de la fase 1 con datos reales del proyecto. Se exportó `v_features_cliente` (`sql/07_exportar_features.sql`, 35 438 clientes) y el notebook `notebooks/modelo_anomalias.py` entrenó un **Isolation Forest**. El modelo es **no supervisado**: nunca vio las etiquetas. Las 492 etiquetas de anomalías inyectadas (1,39 % de los clientes) se usaron solo para medir el resultado.
+
+**El modelo usa solo las 5 features de comportamiento** (ratios de rechazo, cercanía al umbral, cuentas de terceros, variación del monto y actividad nocturna). Una primera versión usaba también las 3 de tamaño y actividad (operaciones en 30 días, ticket y recencia), y marcaba como riesgo ALTO a **59 de los 94 clientes grandes legítimos** que están entre los 100 más activos: confundía "cliente grande" con "cliente raro". Sin esas features, el modelo encuentra más casos inusuales y **no marca a ninguno** de esos clientes. El criterio de negocio es juzgar **cómo opera** el cliente, no **cuánto opera**.
 
 La pregunta de negocio es: **si el back-office revisa solo el 2 % de clientes con mayor score (709), ¿cuántos casos inusuales encuentra?** Se compara con una regla simple de una sola feature, como las de la Parte 1:
 
@@ -283,26 +285,27 @@ La pregunta de negocio es: **si el back-office revisa solo el 2 % de clientes co
 |---|---|---|---|---|
 | Revisión al azar (referencia) | 709 | ≈ 10 | 1,4 % | 2,0 % |
 | Regla: `ratio_cerca_umbral_90d` ≥ 0,5 | 173 | 160 | 92,5 % | 32,5 % |
-| **Isolation Forest (top 2 %)** | **709** | **329** | **46,4 %** | **66,9 %** |
+| Isolation Forest con las 8 features (primera versión) | 709 | 329 | 46,4 % | 66,9 % |
+| **Isolation Forest, solo comportamiento (top 2 %)** | **709** | **339** | **47,8 %** | **68,9 %** |
 
 </div>
 
 | Perfil inusual | Clientes | Detecta el modelo | Detecta la regla |
 |---|---|---|---|
 | Fraccionamiento (pitufeo) | 160 | 100 % | 100 % |
-| Actividad nocturna | 91 | 92,3 % | 0 % |
-| Multicuenta (cuentas de terceros) | 119 | 69,7 % | 0 % |
-| Pico de montos | 122 | 1,6 % | 0 % |
+| Actividad nocturna | 91 | 94,5 % | 0 % |
+| Multicuenta (cuentas de terceros) | 119 | 73,1 % | 0 % |
+| Pico de montos | 122 | 4,9 % | 0 % |
 
-Además, el modelo obtuvo un ROC AUC de 0,896.
+Además, el modelo obtuvo un ROC AUC de 0,922 (0,896 en la primera versión) y no marca a ninguno de los 94 clientes grandes legítimos.
 
 **Interpretación.**
 
-- **Revisando el 2 % de los clientes, el modelo encuentra dos de cada tres casos inusuales**, 33 veces más que una revisión al azar. La regla es muy precisa, pero solo ve el fraccionamiento; el modelo detecta tres tipos de comportamiento sin que nadie le diga qué buscar. Es la evidencia práctica de que hace falta un modelo multivariable.
+- **Revisando el 2 % de los clientes, el modelo encuentra más de dos de cada tres casos inusuales**, 34 veces más que una revisión al azar. La regla es muy precisa, pero solo ve el fraccionamiento; el modelo detecta tres tipos de comportamiento sin que nadie le diga qué buscar. Es la evidencia práctica de que hace falta un modelo multivariable.
 - **El pico de montos casi no se detecta, y eso confirma la arquitectura.** Con las features batch, el perfil "pico" se parece demasiado al de un cliente normal: la mediana de `variacion_monto_30d` es 1,01, igual que la de los clientes normales. Un pico se reconoce comparando **la operación actual** con el perfil del cliente, y eso es justo lo que hace el scoring en línea con Redis (paso 2 del recorrido): suma la operación actual a las features del cliente y agrega `operaciones_24h`.
-- **El modelo prioriza, no decide.** El 46,4 % de precisión significa que más de la mitad de los clientes señalados son normales. Por eso la decisión final sigue siendo del analista, y esas decisiones son las etiquetas con las que se entrenaría el modelo supervisado de la fase 3.
+- **El modelo prioriza, no decide.** El 47,8 % de precisión significa que más de la mitad de los clientes señalados son normales. Por eso la decisión final sigue siendo del analista, y esas decisiones son las etiquetas con las que se entrenaría el modelo supervisado de la fase 3.
 
-Las cifras salen de `resultados/07_modelo_resultados.txt`. El mismo notebook se ejecutó en **Databricks Free Edition** (cómputo *serverless*, leyendo el CSV desde un *Volume* de Unity Catalog) y dio exactamente las mismas cifras. Allí además registra el modelo en MLflow y guarda los scores como tabla Delta.
+Las cifras salen de `resultados/07_modelo_resultados.txt`. La primera versión del notebook se ejecutó en **Databricks Free Edition** (cómputo *serverless*, leyendo el CSV desde un *Volume* de Unity Catalog) y dio exactamente las mismas cifras que la ejecución local; allí además registra el modelo en MLflow y guarda los scores como tabla Delta.
 
 # 6. Comparación entre PostgreSQL y Redis
 
@@ -356,7 +359,7 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 
 | Fase | Alcance | Valor |
 |---|---|---|
-| 1 · Batch | `v_features_cliente` nocturna → Isolation Forest en Databricks → ranking diario de clientes para cumplimiento | Ya probado (sección 5.1): con el 2 % de revisión encuentra el 66,9 % de los casos inusuales |
+| 1 · Batch | `v_features_cliente` nocturna → Isolation Forest en Databricks → ranking diario de clientes para cumplimiento | Ya probado (sección 5.1): con el 2 % de revisión encuentra el 68,9 % de los casos inusuales |
 | 2 · Tiempo real | CDC → Kafka → Redis; scoring síncrono al cargar el comprobante; cola por riesgo | Prioriza la revisión operación por operación |
 | 3 · Aprendizaje continuo | Delta Lake + MLflow en Databricks; gradient boosting con las etiquetas del back-office; monitoreo de deriva de features | El modelo mejora con cada decisión |
 | 4 · Investigación | Grafo de cuentas compartidas (Neo4j) para redes de "mulas" | Análisis de redes, no solo de clientes individuales |
@@ -375,5 +378,5 @@ NexoCambio ya practica esta idea: en el proyecto de Cloud Computing combina Dyna
 
 1. **El caso de IA sale de los datos, no de una moda.** La Parte 1 mostró que el principal motivo de rechazo es el cumplimiento y que los mayores clientes fraccionan sus operaciones. Detectarlo a tiempo es el problema de negocio con más impacto.
 2. **El problema no es de volumen sino de latencia y patrón de acceso:** 18 500 eventos por día y un estado en línea de ≈ 150 MB. Lo que PostgreSQL no hace bien es mantener ventanas por cliente con costo constante; con él, las features cuestan de 6 a 257 ms según el historial.
-3. **Redis es la tecnología adecuada** porque sus estructuras (sorted sets, hashes, sets y TTL) son las mismas operaciones que piden las features. Con Kafka en Confluent Cloud (CDC) y Databricks (Delta Lake y MLflow) completa un ciclo de detección, decisión humana y reentrenamiento. La prueba del modelo lo respalda: revisando el 2 % de los clientes encuentra el 66,9 % de los casos inusuales.
+3. **Redis es la tecnología adecuada** porque sus estructuras (sorted sets, hashes, sets y TTL) son las mismas operaciones que piden las features. Con Kafka en Confluent Cloud (CDC) y Databricks (Delta Lake y MLflow) completa un ciclo de detección, decisión humana y reentrenamiento. La prueba del modelo lo respalda: revisando el 2 % de los clientes encuentra el 68,9 % de los casos inusuales, sin marcar a los clientes grandes legítimos.
 4. **PostgreSQL no se reemplaza, se protege:** sigue siendo el sistema de registro, con su integridad, sus índices y sus consultas de negocio, mientras la carga de tiempo real se resuelve fuera de él. Eso es Polyglot Persistence aplicada con criterio.

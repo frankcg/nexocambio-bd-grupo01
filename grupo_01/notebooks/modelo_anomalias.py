@@ -2,9 +2,11 @@
 # MAGIC %md
 # MAGIC # NexoCambio · Modelo de detección de operaciones inusuales
 # MAGIC
-# MAGIC Parte 2 · Grupo 1. Entrena un **Isolation Forest** (no supervisado) con las 8 features de
-# MAGIC `v_features_cliente` (Parte 1) y mide cuántos de los clientes con comportamiento inusual
-# MAGIC inyectado detecta.
+# MAGIC Parte 2 · Grupo 1. Entrena un **Isolation Forest** (no supervisado) con las 5 features de
+# MAGIC **comportamiento** de `v_features_cliente` (Parte 1) y mide cuántos de los clientes con
+# MAGIC comportamiento inusual inyectado detecta. Las 3 features de tamaño o actividad
+# MAGIC (operaciones, ticket y recencia) se dejan fuera: con ellas el modelo confundía a los clientes
+# MAGIC grandes legítimos con clientes inusuales.
 # MAGIC
 # MAGIC - **Entrada:** `features_clientes.csv`, exportado de PostgreSQL con `sql/07_exportar_features.sql`
 # MAGIC   (35 438 clientes). En Databricks se sube a un *Volume* de Unity Catalog.
@@ -56,11 +58,16 @@ df = pd.read_csv(RUTA_CSV)
 FEATURES = ["operaciones_30d", "monto_promedio_usd_90d", "dias_desde_ultima_operacion", "ratio_rechazo",
             "ratio_cerca_umbral_90d", "ratio_cuentas_terceros", "variacion_monto_30d", "ratio_nocturno"]
 
+# El modelo mira cómo opera el cliente, no cuánto opera.
+FEATURES_MODELO = ["ratio_rechazo", "ratio_cerca_umbral_90d", "ratio_cuentas_terceros",
+                   "variacion_monto_30d", "ratio_nocturno"]
+
 X = df[FEATURES].copy()
 X["monto_promedio_usd_90d"] = X["monto_promedio_usd_90d"].fillna(0)
 X["ratio_rechazo"] = X["ratio_rechazo"].fillna(0)
 X["variacion_monto_30d"] = X["variacion_monto_30d"].fillna(1)
 X = X.fillna(0).astype("float64")  # MLflow pide decimales para admitir nulos al predecir
+X_modelo = X[FEATURES_MODELO]
 
 y = df["perfil_anomalia"].notna().astype(int)  # solo para evaluar
 print(f"Clientes: {len(df):,} · con anomalía inyectada: {y.sum()} ({y.mean():.2%})")
@@ -75,8 +82,8 @@ print(df["perfil_anomalia"].value_counts().to_string())
 
 PARAMS = {"n_estimators": 300, "max_samples": 1024, "contamination": "auto", "random_state": SEMILLA}
 
-modelo = IsolationForest(**PARAMS).fit(X)
-df["score_riesgo"] = -modelo.score_samples(X)  # más alto = más inusual
+modelo = IsolationForest(**PARAMS).fit(X_modelo)
+df["score_riesgo"] = -modelo.score_samples(X_modelo)  # más alto = más inusual
 
 # COMMAND ----------
 
@@ -131,12 +138,29 @@ for perfil, fila in por_perfil.iterrows():
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ### ¿Marca a los buenos clientes grandes?
+# MAGIC
+# MAGIC Entre los 100 clientes más activos (por operaciones en 30 días), los que no tienen anomalía son
+# MAGIC clientes grandes legítimos: marcarlos sería poner bajo sospecha a los mejores clientes.
+
+# COMMAND ----------
+
+activos = df["operaciones_30d"].rank(ascending=False, method="first") <= 100
+grandes_legitimos = activos & (y == 0)
+metricas["grandes_legitimos_marcados"] = int((grandes_legitimos & df["revisar_modelo"]).sum())
+print(f"Clientes grandes legítimos marcados: {metricas['grandes_legitimos_marcados']} "
+      f"de {int(grandes_legitimos.sum())} (entre los 100 más activos)")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ### Los 10 clientes más riesgosos
 
 # COMMAND ----------
 
 top = df.sort_values("score_riesgo", ascending=False).head(10)
-print(top[["codigo_cliente", "score_riesgo", "perfil_anomalia"] + FEATURES[:6]].round(3).to_string(index=False))
+print(top[["codigo_cliente", "score_riesgo", "perfil_anomalia", "operaciones_30d"] + FEATURES_MODELO]
+      .round(3).to_string(index=False))
 
 # COMMAND ----------
 
@@ -151,12 +175,12 @@ print(top[["codigo_cliente", "score_riesgo", "perfil_anomalia"] + FEATURES[:6]].
 if mlflow is not None:
     mlflow.set_experiment("/Shared/nexocambio_anomalias" if EN_DATABRICKS else "nexocambio_anomalias")
     with mlflow.start_run(run_name="isolation_forest"):
-        mlflow.log_params({**PARAMS, "features": ",".join(FEATURES), "revision_pct": REVISION_PCT})
+        mlflow.log_params({**PARAMS, "features": ",".join(FEATURES_MODELO), "revision_pct": REVISION_PCT})
         mlflow.log_metrics({m: float(v) for m, v in metricas.items()})
         try:  # MLflow 3 (Databricks) usa name=; MLflow 2, artifact_path=
-            mlflow.sklearn.log_model(modelo, name="modelo", input_example=X.head(5))
+            mlflow.sklearn.log_model(modelo, name="modelo", input_example=X_modelo.head(5))
         except TypeError:
-            mlflow.sklearn.log_model(modelo, artifact_path="modelo", input_example=X.head(5))
+            mlflow.sklearn.log_model(modelo, artifact_path="modelo", input_example=X_modelo.head(5))
     print("Run registrado en MLflow.")
 
 if EN_DATABRICKS:
