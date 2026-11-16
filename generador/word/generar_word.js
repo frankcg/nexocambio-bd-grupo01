@@ -208,25 +208,29 @@ function bloque(t) {
 }
 
 // ------------------------------------------------------------------ portada
+// Formato de UTEC Posgrado: institución, logo, título, y los bloques AUTORES / DOCENTE / CURSO.
 function portada(html) {
   const campo = (clase) => textoPlano((html.match(new RegExp(`class="${clase}">([\\s\\S]*?)</div>`)) || [])[1] || "");
-  const datos = [...html.matchAll(/<p>([\s\S]*?)<\/p>/g)].map((m) => textoPlano(m[1]));
-  const integrantes = (datos.find((d) => d.startsWith("Integrantes")) || "")
-    .replace(/^Integrantes:\s*/, "").split("·").map((s) => s.trim()).filter(Boolean);
+  const datos = [...html.matchAll(/<p>([\s\S]*?)<\/p>/g)].map((m) => ({ texto: textoPlano(m[1]), rotulo: m[1].includes("<strong>") }));
+  // El src apunta a docs/fuentes/recursos/ (relativo al HTML intermedio del PDF): se toma el nombre del archivo.
+  const logo = path.join(path.dirname(FUENTE), "recursos", path.basename((html.match(/<img class="logo" src="([^"]+)"/) || [])[1]));
+  const serif = { font: "Times New Roman" };
   const p = (texto, opciones = {}, parrafo = {}) =>
-    new Paragraph({ children: [new TextRun({ text: texto, ...opciones })], ...parrafo });
+    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: texto, ...serif, ...opciones })], ...parrafo });
 
   return [
-    p(campo("institucion").toUpperCase(), { color: SUAVE, size: 22, characterSpacing: 20 }, { spacing: { before: 3600, after: 240 } }),
-    p(campo("titulo"), { bold: true, size: 72, color: ACENTO }, { spacing: { after: 120 } }),
-    p(campo("subtitulo"), { size: 32 }, {
-      spacing: { after: 480 },
-      border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: ACENTO, space: 12 } },
+    p(campo("institucion").toUpperCase(), { bold: true, size: 34 }, { spacing: { before: 240 } }),
+    p(campo("escuela").toUpperCase(), { size: 30 }, { spacing: { after: 1000 } }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 1000 },
+      children: [new ImageRun({ type: "png", data: fs.readFileSync(logo), transformation: { width: 234, height: 91 } })],
     }),
-    ...datos.filter((d) => !d.startsWith("Integrantes")).slice(0, 1).map((d) => p(d, { bold: true, size: 24 }, { spacing: { after: 160 } })),
-    p("Integrantes:", { bold: true, size: 22 }, { spacing: { after: 60 } }),
-    ...integrantes.map((nombre) => p(nombre, { size: 22 }, { spacing: { after: 40 }, indent: { left: 360 } })),
-    ...datos.filter((d) => !d.startsWith("Integrantes")).slice(1).map((d) => p(d, { size: 22 }, { spacing: { before: 120 } })),
+    p(campo("titulo").toUpperCase(), { bold: true, size: 44 }, { spacing: { after: 120 } }),
+    p(campo("subtitulo"), { size: 26 }, { spacing: { after: 1100 } }),
+    ...datos.map((d, i) => p(d.texto, { bold: d.rotulo, size: 24 }, {
+      spacing: { before: i === datos.length - 2 ? 1400 : (d.rotulo && i > 0 ? 240 : 0) },
+    })),
   ];
 }
 

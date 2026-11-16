@@ -1,12 +1,20 @@
 <div class="portada">
-<div class="institucion">UTEC Posgrado · Maestría · Curso de Base de Datos</div>
+<div class="institucion">Universidad de Ingeniería y Tecnología</div>
+<div class="escuela">Escuela de Posgrado</div>
+<img class="logo" src="../recursos/logo_utec_posgrado.png" alt="UTEC Posgrado">
 <div class="titulo">NexoCambio</div>
 <div class="subtitulo">Parte 2 · Arquitectura de datos para Ciencia de Datos e Inteligencia Artificial: detección de operaciones inusuales en tiempo real</div>
 <div class="datos">
-<p><strong>Grupo 1</strong></p>
-<p>Integrantes: Frank Laura · Josue Campos · Mauricio Vallejos</p>
-<p>Docente: Luis Chicoma</p>
-<p>Lima, noviembre de 2026</p>
+<p><strong>AUTORES</strong></p>
+<p>Frank Laura</p>
+<p>Josue Campos</p>
+<p>Mauricio Vallejos</p>
+<p><strong>DOCENTE</strong></p>
+<p>Luis Chicoma</p>
+<p><strong>CURSO</strong></p>
+<p>Base de Datos · Grupo 1</p>
+<p>Lima – Perú</p>
+<p>2026</p>
 </div>
 </div>
 
