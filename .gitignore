@@ -15,6 +15,9 @@ derby.log
 # Modelo entrenado por demo/0_preparar.py
 demo/_modelo.pkl
 
+# Paquetes de entrega (grupo_01.rar, grupo_01_final.rar): se suben a la plataforma, no al repositorio
+*.rar
+
 # Credenciales
 .env
 pgpass.conf

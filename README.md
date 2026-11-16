@@ -32,6 +32,11 @@ Databricks (Delta Lake y MLflow). Fuentes en `docs/fuentes/parte2/`.
 
 Los enunciados de ambas partes están en `docs/enunciados/`.
 
+## Presentación final (`grupo_01/presentacion/`)
+`NexoCambio_presentacion_final.pptx` (y su PDF): 12 diapositivas sobre la plantilla de UTEC Posgrado,
+con notas del orador. Se genera con `generador/presentacion/construir.py` a partir de la plantilla.
+La guía de la demo está en `demo/README.md`.
+
 ## Otras carpetas
 - `docs/fuentes/`: fuentes Markdown de los documentos.
   - `python generador/generar_pdfs.py` regenera los PDF (Edge headless).
