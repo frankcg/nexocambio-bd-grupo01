@@ -93,7 +93,9 @@ spread, la mitad de lo cobrado (`grupo_01/resultados/08_oportunidades_resultados
 En Databricks, abrir el Job `nexocambio_pipeline` y pulsar **Run now**, o ejecutar solo el notebook
 `ingesta_kafka_bronze`. Las operaciones y cotizaciones publicadas en los pasos 6 y 7 aparecen en
 `silver_eventos_kafka`: el mismo evento fue a Redis (decisión en milisegundos) y a Delta Lake
-(histórico). La ingesta tarda ≈ 45 s; conviene lanzarla al empezar el acto 2 para que esté lista.
+(histórico). La ingesta tarda ≈ 45 s y, con el disparador `availableNow`, solo toma lo que ya está
+en Kafka al arrancar: **lanzarla justo después de publicar las cotizaciones del paso 7**, sin esperar
+a que venzan. Así corre durante esos 20 s y trae la operación del paso 6 y las dos cotizaciones.
 
 Mensaje final: PostgreSQL es la fuente de verdad, Kafka mueve los eventos, Redis responde en
 milisegundos y Databricks entrena el modelo con el histórico (*Polyglot Persistence*).
