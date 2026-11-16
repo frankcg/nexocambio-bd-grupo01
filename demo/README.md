@@ -88,6 +88,13 @@ se convierte (no dispara nada):
 Cifra para la diapositiva: en 90 días, la intención de compra perdida equivale a US$ 864 mil de
 spread, la mitad de lo cobrado (`grupo_01/resultados/08_oportunidades_resultados.txt`).
 
+**Paso 8 · El mismo evento llega al Data Lake (opcional, ≈ 1 min)**
+
+En Databricks, abrir el Job `nexocambio_pipeline` y pulsar **Run now**, o ejecutar solo el notebook
+`ingesta_kafka_bronze`. Las operaciones y cotizaciones publicadas en los pasos 6 y 7 aparecen en
+`silver_eventos_kafka`: el mismo evento fue a Redis (decisión en milisegundos) y a Delta Lake
+(histórico). La ingesta tarda ≈ 45 s; conviene lanzarla al empezar el acto 2 para que esté lista.
+
 Mensaje final: PostgreSQL es la fuente de verdad, Kafka mueve los eventos, Redis responde en
 milisegundos y Databricks entrena el modelo con el histórico (*Polyglot Persistence*).
 

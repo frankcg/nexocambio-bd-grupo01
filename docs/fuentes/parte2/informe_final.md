@@ -281,7 +281,14 @@ La capa analítica se implementó con la **arquitectura medallion** en un solo n
 | **Silver** | `silver_operaciones`, `silver_clientes`, `silver_operaciones_rechazadas` | Corrige tipos, quita duplicados y valida (monto positivo, estado válido, fecha anterior al corte); lo inválido va a cuarentena. Agrega si la cuenta destino es de un tercero y la hora local |
 | **Gold** | `gold_features_cliente`, `gold_clientes_riesgo`, `gold_exposicion_riesgo`, `gold_reactivacion` | Las 8 features con Spark SQL, el riesgo de cada cliente, la exposición del negocio y los clientes a reactivar |
 
-Bronze se carga **por lotes** desde extractos de PostgreSQL (`generador/exportar_bronze.py`); en producción se llenaría desde los topics de Kafka con Structured Streaming, sin cambiar silver ni gold.
+Bronze tiene dos entradas:
+
+- **El histórico**, por lotes, desde extractos de PostgreSQL (`generador/exportar_bronze.py`). En producción vendría por CDC; aquí no es posible porque la base está en una laptop que Confluent Cloud no puede alcanzar.
+- **Los eventos nuevos, desde Kafka**, con el notebook `notebooks/ingesta_kafka_bronze.py`. Structured Streaming lee los topics `nexocambio.operaciones` y `nexocambio.cotizaciones` de Confluent Cloud y los guarda tal como llegan en `bronze_eventos_kafka` (con su topic, partición y offset); luego los interpreta en `silver_eventos_kafka`. Usa el disparador `availableNow` y un *checkpoint*: cada ejecución lee lo nuevo desde la última vez y ningún evento se carga dos veces. Las credenciales se leen de un *secret scope* o de parámetros, nunca del código.
+
+Así se cierra el flujo: **una operación publicada en Kafka llega en tiempo real a Redis (para decidir en milisegundos) y también al Data Lake (para el histórico)**. Se comprobó con los 13 eventos de las pruebas de la demo, que aparecieron en las dos tablas.
+
+**Automatización.** Las dos etapas forman el Job de Databricks `nexocambio_pipeline`: la tarea `ingesta_kafka` y, cuando termina, la tarea `medallion` (bronze → silver → gold → modelo). Se ejecutó con éxito en 4 minutos 42 segundos. Con un disparador programado (por ejemplo, cada noche), el pipeline deja de depender de que alguien lo ejecute a mano.
 
 **Las mismas features en tres tecnologías.** `gold_features_cliente` replica en Spark SQL la vista `v_features_cliente` de la Parte 1. Para comprobarlo se compararon las sumas de control de las 8 features (cantidad de valores no nulos y suma) en los 35 438 clientes: **son idénticas a las de PostgreSQL** (`resultados/09_bronze_y_control_postgresql.txt` y `09_medallion_resultados.txt`). En Redis, la demo también reproduce exactamente las features de cada cliente (paso 5 de la demo). Es la garantía contra el *training-serving skew*: se entrena y se predice con lo mismo.
 

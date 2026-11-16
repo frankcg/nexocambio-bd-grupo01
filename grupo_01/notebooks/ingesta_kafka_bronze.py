@@ -56,6 +56,8 @@ else:  # PySpark local, para validar la conexión y el esquema antes de subir el
     spark.sparkContext.setLogLevel("ERROR")
     LOGIN = "org.apache.kafka.common.security.plain.PlainLoginModule"
 
+spark.conf.set("spark.sql.session.timeZone", "America/Lima")  # horas del negocio, como en el resto del proyecto
+
 if not (BOOTSTRAP and API_KEY and API_SECRET):
     raise ValueError("Faltan las credenciales de Kafka: complete los widgets o cree el secret scope 'nexocambio'.")
 

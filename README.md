@@ -27,6 +27,7 @@ Databricks (Delta Lake y MLflow). Fuentes en `docs/fuentes/parte2/`.
 | `sql/06_parte2_caracterizacion.sql` | Mide las cifras de la caracterización del problema |
 | `sql/08_oportunidades_ingreso.sql` | Mide las oportunidades de ingreso: cotizaciones abandonadas y clientes por reactivar |
 | `generador/exportar_bronze.py` | Exporta de PostgreSQL los extractos de la capa bronze a `datos/bronze/` (no versionado, ~34 MB) e imprime sumas de control de las features |
+| `notebooks/ingesta_kafka_bronze.py` | Notebook de Databricks: Structured Streaming de los topics de Confluent Cloud a `bronze_eventos_kafka` y `silver_eventos_kafka`. Con `pipeline_medallion` forma el Job `nexocambio_pipeline` |
 | `notebooks/pipeline_medallion.py` | Notebook de Databricks: bronze → silver → gold (features con Spark SQL, riesgo, exposición y reactivación), Isolation Forest y MLflow. También corre con PySpark local |
 
 Los enunciados de ambas partes están en `docs/enunciados/`.
