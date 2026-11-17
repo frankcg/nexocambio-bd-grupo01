@@ -1,0 +1,18 @@
+# Tema del tablero de la demo con los colores de UTEC Posgrado (gris oscuro y cian).
+# preparar_demo.ps1 ejecuta Streamlit desde demo/ para que tome este archivo.
+[theme]
+base = "dark"
+primaryColor = "#00E1FF"
+backgroundColor = "#4D4B4C"
+secondaryBackgroundColor = "#5E5C5D"
+textColor = "#FFFFFF"
+linkColor = "#00E1FF"
+borderColor = "#6E6C6D"
+showWidgetBorder = true
+baseRadius = "8px"
+font = "'Space Grotesk':https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+headingFontWeights = [700, 700, 600, 600, 600, 600]
+chartCategoricalColors = ["#00E1FF", "#A6A6A6", "#FFFFFF"]
+
+[browser]
+gatherUsageStats = false

@@ -112,7 +112,9 @@ def procesar_operacion(r, actualizar, m, msg, ev):
     t_modelo = (time.perf_counter() - t0) * 1000
 
     r.hset(f"op:{{{codigo}}}:riesgo", mapping={"score": round(score, 4), "nivel": nivel,
-                                                "motivos": json.dumps(motivos), "modelo": "isolation_forest"})
+                                                "motivos": json.dumps(motivos), "modelo": "isolation_forest",
+                                                "codigo_cliente": op.get("codigo_cliente") or str(id_cliente),
+                                                "monto_usd": monto, "procesado_ms": int(time.time() * 1000)})
     r.expire(f"op:{{{codigo}}}:riesgo", 30 * 86400)
     r.zadd("cola:riesgo", {codigo: score})
     posicion = r.zrevrank("cola:riesgo", codigo) + 1
@@ -168,7 +170,8 @@ def atender_vencidas(r, vencidas, m):
         r.hset(f"cot:{codigo}", "estado", "vencida")
         r.hincrby(METRICAS, "vencidas")
         r.hincrby(METRICAS, "ofertas" if accion else "sin_oferta")
-        r.xadd(OFERTAS, {"codigo_cotizacion": codigo, "id_cliente": id_cliente, "monto_usd": monto,
+        r.xadd(OFERTAS, {"codigo_cotizacion": codigo, "id_cliente": id_cliente, "codigo_cliente": cot["codigo_cliente"],
+                         "monto_usd": monto,
                          "riesgo": nivel, "score": round(score, 4), "accion": accion or "ninguna"},
                maxlen=10_000, approximate=True)
         t_decision = (time.perf_counter() - t0) * 1000

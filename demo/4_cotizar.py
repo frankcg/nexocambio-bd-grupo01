@@ -23,28 +23,38 @@ _spec = importlib.util.spec_from_file_location("publicar_operacion", DEMO / "3_p
 publicar_operacion = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(publicar_operacion)
 
-parser = argparse.ArgumentParser(description="Publica una cotización en Kafka.")
-parser.add_argument("cliente", nargs="?", default="CLI-06EZN7")
-parser.add_argument("monto", nargs="?", type=float, default=3000.0)
-parser.add_argument("--opera", type=float, metavar="SEG", help="publicar la operación a los SEG segundos")
-args = parser.parse_args()
 
-with conectar_postgres() as pg:
-    id_cliente, cuenta = datos_cliente(pg, args.cliente)
+def evento_cotizacion(id_cliente, codigo_cliente, monto):
+    codigo_cot = codigo("CT")
+    return codigo_cot, evento("cotizacion_emitida", "cotizacion", {
+        "codigo_cotizacion": codigo_cot, "id_cliente": id_cliente, "codigo_cliente": codigo_cliente,
+        "modalidad": "casa", "moneda_origen": "USD", "moneda_destino": "PEN", "monto_usd": monto,
+        "tasa_preferencial": monto >= UMBRAL_PREFERENCIAL_USD, "vigencia_s": VIGENCIA_COTIZACION_S})
 
-productor = Producer(kafka_conf(**{"enable.idempotence": True, "acks": "all"}))
-productor.list_topics(TOPIC_COTIZACIONES, timeout=15)
 
-codigo_cot = codigo("CT")
-ev = evento("cotizacion_emitida", "cotizacion", {
-    "codigo_cotizacion": codigo_cot, "id_cliente": id_cliente, "codigo_cliente": args.cliente,
-    "modalidad": "casa", "moneda_origen": "USD", "moneda_destino": "PEN", "monto_usd": args.monto,
-    "tasa_preferencial": args.monto >= UMBRAL_PREFERENCIAL_USD, "vigencia_s": VIGENCIA_COTIZACION_S})
-publicar(productor, TOPIC_COTIZACIONES, id_cliente, ev,
-         f"{codigo_cot} ({args.cliente}, US$ {args.monto:,.2f}, vence en {VIGENCIA_COTIZACION_S} s)")
+def publicar_cotizacion(productor, id_cliente, codigo_cliente, monto):
+    codigo_cot, ev = evento_cotizacion(id_cliente, codigo_cliente, monto)
+    publicar(productor, TOPIC_COTIZACIONES, id_cliente, ev,
+             f"{codigo_cot} ({codigo_cliente}, US$ {monto:,.2f}, vence en {VIGENCIA_COTIZACION_S} s)")
+    return codigo_cot
 
-if args.opera is not None:
-    time.sleep(args.opera)
-    ev_op = publicar_operacion.evento_operacion(id_cliente, cuenta, args.monto, codigo_cot)
-    publicar(productor, TOPIC_OPERACIONES, id_cliente, ev_op,
-             f"{ev_op['operacion']['codigo_operacion']} con la cotización {codigo_cot}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Publica una cotización en Kafka.")
+    parser.add_argument("cliente", nargs="?", default="CLI-06EZN7")
+    parser.add_argument("monto", nargs="?", type=float, default=3000.0)
+    parser.add_argument("--opera", type=float, metavar="SEG", help="publicar la operación a los SEG segundos")
+    args = parser.parse_args()
+
+    with conectar_postgres() as pg:
+        id_cliente, cuenta = datos_cliente(pg, args.cliente)
+
+    productor = Producer(kafka_conf(**{"enable.idempotence": True, "acks": "all"}))
+    productor.list_topics(TOPIC_COTIZACIONES, timeout=15)
+    codigo_cot = publicar_cotizacion(productor, id_cliente, args.cliente, args.monto)
+
+    if args.opera is not None:
+        time.sleep(args.opera)
+        ev_op = publicar_operacion.evento_operacion(id_cliente, cuenta, args.monto, codigo_cot, args.cliente)
+        publicar(productor, TOPIC_OPERACIONES, id_cliente, ev_op,
+                 f"{ev_op['operacion']['codigo_operacion']} con la cotización {codigo_cot}")

@@ -17,9 +17,10 @@ from comun import (TOPIC_OPERACIONES, codigo, conectar_postgres, datos_cliente, 
                    publicar)
 
 
-def evento_operacion(id_cliente, cuenta, monto, codigo_cotizacion=None):
+def evento_operacion(id_cliente, cuenta, monto, codigo_cotizacion=None, codigo_cliente=None):
     return evento("operacion_creada", "operacion", {
         "codigo_operacion": codigo("NX"), "codigo_cotizacion": codigo_cotizacion, "id_cliente": id_cliente,
+        "codigo_cliente": codigo_cliente,
         "modalidad": "casa", "moneda_origen": "USD", "moneda_destino": "PEN", "monto_origen": monto,
         "monto_usd": monto, "estado": "Pendiente de comprobante", "cuenta_destino": cuenta})
 
@@ -32,6 +33,6 @@ if __name__ == "__main__":
 
     productor = Producer(kafka_conf(**{"enable.idempotence": True, "acks": "all"}))
     productor.list_topics(TOPIC_OPERACIONES, timeout=15)  # abre la conexión antes de fechar el evento
-    ev = evento_operacion(id_cliente, cuenta, monto)
+    ev = evento_operacion(id_cliente, cuenta, monto, codigo_cliente=codigo_cliente)
     publicar(productor, TOPIC_OPERACIONES, id_cliente, ev,
              f"{ev['operacion']['codigo_operacion']} ({codigo_cliente}, US$ {monto:,.2f})")

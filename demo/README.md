@@ -3,112 +3,87 @@
 Hilo conductor: seguir a **CLI-ZYCHEZ**, el cliente de mayor volumen, que resulta ser el más
 riesgoso (fracciona sus operaciones justo debajo de US$ 10 000).
 
-## Antes de la exposición (una vez, ≈ 2 min)
+## Antes de la exposición: un solo comando (≈ 2 min)
 
-1. **Liberar memoria:** cerrar Chrome, Zoom y otros programas pesados. Con poca RAM libre,
-   PostgreSQL lee del disco y los tiempos suben.
-2. Abrir **Docker Desktop** y levantar Redis:
-   ```
-   docker compose -f demo/docker-compose.yml up -d
-   ```
-3. Preparar el entorno: crea los topics en Confluent Cloud (si no existen), carga Redis desde
-   PostgreSQL y entrena el modelo. También **reinicia Redis**, así que borra las operaciones
-   publicadas en ensayos anteriores.
-   ```
-   .venv\Scripts\python demo/0_preparar.py
-   ```
-4. Abrir dos terminales de PowerShell en la raíz del proyecto. Si los acentos se ven mal,
-   ejecutar antes `$env:PYTHONIOENCODING = "utf-8"` en cada una. Dejar en la **terminal B** el
-   procesador corriendo hasta que diga *"Escuchando nexocambio.operaciones"*:
-   ```
-   .venv\Scripts\python demo/2_procesador.py
-   ```
+Cerrar Chrome, Zoom y otros programas pesados (con poca RAM, PostgreSQL lee del disco). Luego,
+en PowerShell, desde la raíz del proyecto:
+
+```
+powershell -ExecutionPolicy Bypass -File demo\preparar_demo.ps1
+```
+
+El script abre Docker Desktop si hace falta, levanta Redis, cierra procesadores de ensayos
+anteriores, ejecuta `0_preparar.py` (topics, Redis desde PostgreSQL y modelo), y abre:
+
+- una ventana **«procesador»**, que debe decir *Escuchando … (12 particiones)*;
+- el **tablero** en el navegador: http://localhost:8501 (cola por riesgo y ofertas, en vivo).
+
+Dejar abierto en Databricks el notebook `ingesta_kafka_bronze`.
 
 Requisitos: `.env` en la raíz con `KAFKA_BOOTSTRAP`, `KAFKA_API_KEY` y `KAFKA_API_SECRET`;
-PostgreSQL en el puerto 5433; entorno `.venv` con confluent-kafka, redis, psycopg, pandas y
-scikit-learn.
+PostgreSQL en el puerto 5433; entorno `.venv` con confluent-kafka, redis, psycopg, pandas,
+scikit-learn y streamlit.
 
-## Acto 1 · PostgreSQL (Parte 1, ≈ 2,5 min) · terminal A
+## Acto 1 · PostgreSQL (≈ 2,5 min)
 
-En PowerShell (el `&` es necesario porque la ruta va entre comillas):
 ```
 $env:PGCLIENTENCODING = "UTF8"
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -p 5433 -U postgres -d nexocambio -f demo/acto1_postgresql.sql
 ```
 
-El script se detiene antes de cada paso: **Enter** para seguir.
+Enter para avanzar:
 
 | Paso | Qué se ve | Qué decir |
 |---|---|---|
-| 1 | Un analista intenta pasar una operación de *Procesada* a *En proceso* y la base la rechaza | Las reglas del negocio están en el modelo (CHECK de la máquina de estados), no solo en la aplicación |
-| 2 | C6: CLI-ZYCHEZ es el n.º 1 en volumen julio, agosto y septiembre | El ranking comercial dice que es el mejor cliente… |
-| 3 | Sus features frente a un cliente típico: `ratio_cerca_umbral` 0,754 frente a 0,000 | …pero el 75 % de sus operaciones está justo debajo del umbral de la UIF: es fraccionamiento |
-| 4 | O1 antes y después del índice compuesto: ≈ 70 ms → ≈ 0,6 ms | El índice (id_cliente, fecha DESC) sigue el patrón de acceso: va directo al cliente y entrega las filas ordenadas |
+| 1 | Pasar una operación de *Procesada* a *En proceso*: la base la rechaza | Las reglas viven en el modelo, no solo en la aplicación |
+| 2 | C6: CLI-ZYCHEZ es el n.º 1 en volumen jul–set | Para el área comercial es el mejor cliente… |
+| 3 | Sus features: `ratio_cerca_umbral` 0,754 frente a 0,000 | …pero el 75 % de sus operaciones está justo bajo el umbral de la UIF |
+| 4 | O1: ≈ 70 ms → ≈ 0,6 ms con el índice compuesto | El índice sigue el patrón de acceso |
 
-## Acto 2 · Kafka + Redis (Parte 2, ≈ 2,5 min) · terminal A
+## Acto 2 · Kafka + Redis + Databricks (≈ 2,5 min)
 
-**Paso 5 · ¿Por qué no basta PostgreSQL?**
 ```
-.venv\Scripts\python demo/1_comparar.py
+.venv\Scripts\python demo/acto2.py
 ```
-Las mismas features, idénticas, en PostgreSQL y en Redis. PostgreSQL tarda ≈ 5 ms para el
-cliente típico y ≈ 100–260 ms para CLI-ZYCHEZ: crece con el historial. Redis tarda lo mismo
-para los dos (≈ 2–4 ms en la laptop; Redis en sí resuelve la lectura en ≈ 0,5 ms y el resto
-es la red de Docker Desktop).
 
-**Paso 6 · Una operación nueva, en tiempo real**
-```
-.venv\Scripts\python demo/3_publicar.py CLI-ZYCHEZ 9850
-```
-En la **terminal B** aparece el evento: llegó por Kafka desde Confluent Cloud (≈ 1 s, ida y
-vuelta a AWS us-east-2), Redis actualizó sus ventanas con un script Lua (≈ 1–2 ms), el modelo
-lo puntuó (≈ 15–30 ms) y quedó en la cola del back-office con **riesgo ALTO** y sus motivos.
+El script publica los eventos por sí mismo; Enter para avanzar. Las reacciones se ven en el
+**tablero** y en la ventana del **procesador**.
 
-Para contrastar, un cliente típico:
-```
-.venv\Scripts\python demo/3_publicar.py CLI-06EZN7 500
-```
-→ **riesgo NORMAL**.
+| Paso | Qué hace el script | Qué se ve en el tablero | Qué decir |
+|---|---|---|---|
+| 1 | Operación de CLI-ZYCHEZ, US$ 9 850 | Primera en la cola, **riesgo ALTO**, motivos | Kafka → Redis → modelo en milisegundos |
+| 2 | Operación de un cliente típico, US$ 500 | **Riesgo NORMAL** | Juzga cómo opera el cliente, no cuánto |
+| 3 | Dos cotizaciones que vencen en 20 s | Oferta para CLI-06EZN7; **sin incentivo** para CLI-ZYCHEZ | Segundo uso: rescatar la venta (US$ 864 mil de spread perdido en 90 días) |
+| 4 | Lista los códigos publicados | — | El mismo evento llegó a Delta Lake |
 
-**Paso 7 · Segundo uso: recuperar cotizaciones abandonadas**
+En el paso 3 el script avisa **«AHORA, en Databricks: ingesta_kafka_bronze → Run all»**: lanzarla
+en ese momento. Con el disparador `availableNow` solo toma lo que ya está en Kafka, y así corre
+durante los 20 s de espera (tarda ≈ 45 s). En el paso 4, `silver_eventos_kafka` muestra los mismos
+códigos que imprimió el script.
 
-La misma arquitectura, ahora para vender más. La tasa garantizada dura 5 minutos; en la demo,
-20 segundos.
-```
-.venv\Scripts\python demo/4_cotizar.py CLI-06EZN7 3000
-.venv\Scripts\python demo/4_cotizar.py CLI-ZYCHEZ 9800
-```
-En la **terminal B**, a los 20 s: el cliente típico recibe una acción comercial ("mantener la tasa
-5 minutos más"); CLI-ZYCHEZ, **ninguna**, porque es de riesgo ALTO. El mismo modelo que protege
-al negocio decide a quién no se le ofrece un incentivo. Si se quiere mostrar una cotización que sí
-se convierte (no dispara nada):
-```
-.venv\Scripts\python demo/4_cotizar.py CLI-06EZN7 4500 --opera 5
-```
-Cifra para la diapositiva: en 90 días, la intención de compra perdida equivale a US$ 864 mil de
-spread, la mitad de lo cobrado (`grupo_01/resultados/08_oportunidades_resultados.txt`).
-
-**Paso 8 · El mismo evento llega al Data Lake (opcional, ≈ 1 min)**
-
-En Databricks, abrir el Job `nexocambio_pipeline` y pulsar **Run now**, o ejecutar solo el notebook
-`ingesta_kafka_bronze`. Las operaciones y cotizaciones publicadas en los pasos 6 y 7 aparecen en
-`silver_eventos_kafka`: el mismo evento fue a Redis (decisión en milisegundos) y a Delta Lake
-(histórico). La ingesta tarda ≈ 45 s y, con el disparador `availableNow`, solo toma lo que ya está
-en Kafka al arrancar: **lanzarla justo después de publicar las cotizaciones del paso 7**, sin esperar
-a que venzan. Así corre durante esos 20 s y trae la operación del paso 6 y las dos cotizaciones.
+Opcional: `python demo/acto2.py --comparar` muestra primero las mismas features en PostgreSQL y
+en Redis (PostgreSQL tarda más cuanto más historial tiene el cliente; Redis, lo mismo para todos).
 
 Mensaje final: PostgreSQL es la fuente de verdad, Kafka mueve los eventos, Redis responde en
-milisegundos y Databricks entrena el modelo con el histórico (*Polyglot Persistence*).
+milisegundos y Databricks aprende del histórico (*Polyglot Persistence*).
+
+## Scripts sueltos (para ensayar o si algo falla)
+
+| Script | Qué hace |
+|---|---|
+| `0_preparar.py` | Topics, carga de Redis desde PostgreSQL y modelo (reinicia Redis) |
+| `1_comparar.py` | Las mismas features en PostgreSQL y en Redis, con tiempos |
+| `2_procesador.py` | Consumer group: operaciones (riesgo) y cotizaciones (recuperación) |
+| `3_publicar.py CLI-ZYCHEZ 9850` | Publica una operación |
+| `4_cotizar.py CLI-06EZN7 3000 [--opera 5]` | Publica una cotización (y opcionalmente su operación) |
+| `tablero.py` | Tablero Streamlit: `python -m streamlit run tablero.py` desde `demo/` (toma su tema de `demo/.streamlit/`) |
 
 ## Si algo falla en vivo
 
-- **Un evento no aparece en la terminal B:** hay otro procesador abierto (por ejemplo, de un ensayo
-  anterior). Están en el mismo *consumer group* y Kafka reparte las particiones entre ambos.
-  Cerrar todos con Ctrl+C y dejar uno solo; al arrancar debe decir **12 particiones**.
-- **Confluent Cloud no responde** (internet): mostrar el paso 5, que no usa Kafka, y el video
-  de respaldo.
-- **Docker / Redis caído:** `docker compose -f demo/docker-compose.yml up -d` y volver a
-  ejecutar `0_preparar.py`.
+- **Un evento no aparece:** hay otro procesador abierto y Kafka reparte las particiones entre
+  ambos. Volver a ejecutar `preparar_demo.ps1`, que cierra los anteriores.
+- **Confluent Cloud no responde** (internet): mostrar el acto 1 y el video de respaldo.
+- **Docker / Redis caído:** volver a ejecutar `preparar_demo.ps1`.
 - **Tiempos de PostgreSQL muy altos:** falta memoria libre; cerrar programas.
 
 Grabar un **video de respaldo** de la demo completa antes del día de la exposición.
